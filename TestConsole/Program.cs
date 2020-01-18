@@ -29,9 +29,9 @@ namespace TestConsole
 
             await using var connection = await client.ConnectAsync(new IPEndPoint(IPAddress.Loopback, 29092));
             var kafka = new KafkaProtocol(connection, "fred");
-
+            Console.WriteLine("\n\n");
+            
             await GetVersion(kafka);
-
             await GetMetadata(kafka);
 
             Console.WriteLine("done...");
@@ -49,7 +49,7 @@ namespace TestConsole
 
         private static async Task GetMetadata(KafkaProtocol kafka)
         {
-            Console.WriteLine("\n\n----- Metadata");
+            Console.WriteLine("----- Metadata");
             var metadata = await kafka.Metadata();
             Console.WriteLine("brokers");
             foreach (var b in metadata.Brokers)
