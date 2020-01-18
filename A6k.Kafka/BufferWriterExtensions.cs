@@ -38,7 +38,18 @@ namespace A6k.Kafka
 
         public static void WriteVarInt(this IBufferWriter<byte> output, int num)
         {
-            Span<byte> buffer = stackalloc byte[5];
+            var n = (uint)((num << 1) ^ (num >> 31));
+            output.WriteRawVarInt(n);
+        }
+        public static void WriteVarInt(this IBufferWriter<byte> output, long num)
+        {
+            var n = (ulong)((num << 1) ^ (num >> 63));
+            output.WriteRawVarInt(n);
+        }
+
+        public static void WriteRawVarInt(this IBufferWriter<byte> output, ulong num)
+        {
+            Span<byte> buffer = stackalloc byte[9];
 
             // This code writes length prefix of the message as a VarInt. Read the comment in
             // the BinaryMessageParser.TryParseMessage for details.
@@ -57,27 +68,6 @@ namespace A6k.Kafka
             while (num > 0);
 
             output.Write(buffer.Slice(0, numBytes));
-        }
-
-        public static int WriteVarInt(Span<byte> buffer, long length)
-        {
-            // This code writes length prefix of the message as a VarInt. Read the comment in
-            // the BinaryMessageParser.TryParseMessage for details.
-            var numBytes = 0;
-            do
-            {
-                ref var current = ref buffer[numBytes];
-                current = (byte)(length & 0x7f);
-                length >>= 7;
-                if (length > 0)
-                {
-                    current |= 0x80;
-                }
-                numBytes++;
-            }
-            while (length > 0);
-
-            return numBytes;
         }
     }
 }

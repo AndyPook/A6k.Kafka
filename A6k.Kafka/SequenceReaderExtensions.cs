@@ -34,6 +34,76 @@ namespace A6k.Kafka
             return true;
         }
 
+
+        public static bool TryReadVarint64(ref this SequenceReader<byte> reader, out long result)
+        {
+            int shift = 0;
+            result = 0;
+            while (shift < 64)
+            {
+                if (!reader.TryRead(out byte b))
+                    return false;
+                result |= (long)(b & 0x7F) << shift;
+                if ((b & 0x80) == 0)
+                {
+                    return true;
+                }
+                shift += 7;
+            }
+            throw new InvalidOperationException("MalformedVarint");
+        }
+        public static bool TryReadVarint32(ref this SequenceReader<byte> reader, out int result)
+        {
+            int shift = 0;
+            result = 0;
+            while (shift < 32)
+            {
+                if (!reader.TryRead(out byte b))
+                    return false;
+                result |= (int)(b & 0x7F) << shift;
+                if ((b & 0x80) == 0)
+                {
+                    return true;
+                }
+                shift += 7;
+            }
+            throw new InvalidOperationException("MalformedVarint");
+        }
+        public static bool TryReadRawVarint64(ref this SequenceReader<byte> reader, out ulong result)
+        {
+            int shift = 0;
+            result = 0;
+            while (shift < 64)
+            {
+                if (!reader.TryRead(out byte b))
+                    return false;
+                result |= (ulong)(b & 0x7F) << shift;
+                if ((b & 0x80) == 0)
+                {
+                    return true;
+                }
+                shift += 7;
+            }
+            throw new InvalidOperationException("MalformedVarint");
+        }
+        public static bool TryReadRawVarint32(ref this SequenceReader<byte> reader, out uint result)
+        {
+            int shift = 0;
+            result = 0;
+            while (shift < 32)
+            {
+                if (!reader.TryRead(out byte b))
+                    return false;
+                result |= (uint)(b & 0x7F) << shift;
+                if ((b & 0x80) == 0)
+                {
+                    return true;
+                }
+                shift += 7;
+            }
+            throw new InvalidOperationException("MalformedVarint");
+        }
+
         public static bool TryReadString(ref this SequenceReader<byte> reader, out string value)
         {
             value = null;
@@ -85,7 +155,6 @@ namespace A6k.Kafka
             setter(arr);
             return true;
         }
-
         public static bool TryReadArray<T>(ref this SequenceReader<byte> reader, TryParse<T> readItem, out T[] value)
         {
             value = default;
