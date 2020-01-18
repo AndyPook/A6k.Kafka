@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Buffers;
 
-namespace TestConsole
+namespace A6k.Kafka
 {
     public class MetadataResponseReader : KafkaResponseReader<MetadataResponse>
     {

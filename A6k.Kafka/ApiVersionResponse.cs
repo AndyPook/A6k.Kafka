@@ -1,6 +1,6 @@
 ﻿using Bedrock.Framework.Protocols;
 
-namespace TestConsole
+namespace A6k.Kafka
 {
     public class ApiVersionResponse
     {

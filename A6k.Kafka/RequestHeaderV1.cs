@@ -1,4 +1,4 @@
-﻿namespace TestConsole
+﻿namespace A6k.Kafka
 {
     public struct RequestHeaderV1
     {

@@ -1,6 +1,6 @@
 ﻿using System.Buffers;
 
-namespace TestConsole
+namespace A6k.Kafka
 {
     internal static class KafkaResponseReader_
     {

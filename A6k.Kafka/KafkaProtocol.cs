@@ -10,7 +10,7 @@ using Bedrock.Framework.Protocols;
 using Microsoft.AspNetCore.Connections;
 using Nerdbank.Streams;
 
-namespace TestConsole
+namespace A6k.Kafka
 {
     public class KafkaProtocol
     {
@@ -54,59 +54,6 @@ namespace TestConsole
             outbound.Add(op);
             return await op.GetResponse();
         }
-
-        private abstract class Op
-        {
-            public int CorrelationId { get; set; }
-            public short ApiKey { get; set; }
-            public short Version { get; set; }
-
-            public abstract void WriteMessage(IBufferWriter<byte> output);
-            public abstract ValueTask ParseResponse(ProtocolReader reader);
-        }
-
-        private class Op<TRequest, TResponse> : Op, IValueTaskSource<TResponse>
-        {
-            private ManualResetValueTaskSourceCore<TResponse> vts;
-
-            public TRequest Request { get; set; }
-
-            public IMessageWriter<TRequest> MessageWriter { get; set; }
-            public IMessageReader<TResponse> MessageReader { get; set; }
-
-            public override async ValueTask ParseResponse(ProtocolReader reader)
-            {
-                var result = await reader.ReadAsync(MessageReader);
-                reader.Advance();
-                vts.SetResult(result.Message);
-            }
-
-            public ValueTask<TResponse> GetResponse() => new ValueTask<TResponse>(this, vts.Version);
-
-            public override void WriteMessage(IBufferWriter<byte> output) => MessageWriter?.WriteMessage(Request, output);
-
-            TResponse IValueTaskSource<TResponse>.GetResult(short token) => vts.GetResult(token);
-            ValueTaskSourceStatus IValueTaskSource<TResponse>.GetStatus(short token) => vts.GetStatus(token);
-            void IValueTaskSource<TResponse>.OnCompleted(Action<object> continuation, object state, short token, ValueTaskSourceOnCompletedFlags flags)
-                => vts.OnCompleted(continuation, state, token, flags);
-        }
-
-        private Op GetOp(int correctionId)
-        {
-            lock (inflight)
-            {
-                for (var node = inflight.First; node != null; node = node.Next)
-                {
-                    if (node.Value.CorrelationId == correctionId)
-                    {
-                        inflight.Remove(node);
-                        return node.Value;
-                    }
-                }
-            }
-            return default;
-        }
-
 
         private async Task ProcessOutbound(CancellationToken cancellationToken = default)
         {
@@ -175,6 +122,58 @@ namespace TestConsole
                     reader.Advance();
                 }
             }
+        }
+
+        private Op GetOp(int correctionId)
+        {
+            lock (inflight)
+            {
+                for (var node = inflight.First; node != null; node = node.Next)
+                {
+                    if (node.Value.CorrelationId == correctionId)
+                    {
+                        inflight.Remove(node);
+                        return node.Value;
+                    }
+                }
+            }
+            return default;
+        }
+
+        private abstract class Op
+        {
+            public int CorrelationId { get; set; }
+            public short ApiKey { get; set; }
+            public short Version { get; set; }
+
+            public abstract void WriteMessage(IBufferWriter<byte> output);
+            public abstract ValueTask ParseResponse(ProtocolReader reader);
+        }
+
+        private class Op<TRequest, TResponse> : Op, IValueTaskSource<TResponse>
+        {
+            private ManualResetValueTaskSourceCore<TResponse> vts;
+
+            public TRequest Request { get; set; }
+
+            public IMessageWriter<TRequest> MessageWriter { get; set; }
+            public IMessageReader<TResponse> MessageReader { get; set; }
+
+            public override async ValueTask ParseResponse(ProtocolReader reader)
+            {
+                var result = await reader.ReadAsync(MessageReader);
+                reader.Advance();
+                vts.SetResult(result.Message);
+            }
+
+            public ValueTask<TResponse> GetResponse() => new ValueTask<TResponse>(this, vts.Version);
+
+            public override void WriteMessage(IBufferWriter<byte> output) => MessageWriter?.WriteMessage(Request, output);
+
+            TResponse IValueTaskSource<TResponse>.GetResult(short token) => vts.GetResult(token);
+            ValueTaskSourceStatus IValueTaskSource<TResponse>.GetStatus(short token) => vts.GetStatus(token);
+            void IValueTaskSource<TResponse>.OnCompleted(Action<object> continuation, object state, short token, ValueTaskSourceOnCompletedFlags flags)
+                => vts.OnCompleted(continuation, state, token, flags);
         }
     }
 }

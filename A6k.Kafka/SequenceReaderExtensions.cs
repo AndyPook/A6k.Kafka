@@ -3,7 +3,7 @@ using System.Buffers;
 using System.Diagnostics;
 using System.Text;
 
-namespace TestConsole
+namespace A6k.Kafka
 {
     public static class SequenceReaderExtensions
     {

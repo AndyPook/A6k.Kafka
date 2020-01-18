@@ -5,7 +5,9 @@ VisualStudioVersion = 16.0.29613.14
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "TestConsole", "TestConsole\TestConsole.csproj", "{E8955FDE-7985-48EC-A57F-6D32A63448C8}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ConsoleApp1", "ConsoleApp1\ConsoleApp1.csproj", "{4327D890-1D0B-4E61-90A4-6652E68E050F}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ConsoleApp1", "ConsoleApp1\ConsoleApp1.csproj", "{4327D890-1D0B-4E61-90A4-6652E68E050F}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "A6k.Kafka", "A6k.Kafka\A6k.Kafka.csproj", "{3B9ADE73-135D-4961-A51C-14A8908614DD}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -21,6 +23,10 @@ Global
 		{4327D890-1D0B-4E61-90A4-6652E68E050F}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{4327D890-1D0B-4E61-90A4-6652E68E050F}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{4327D890-1D0B-4E61-90A4-6652E68E050F}.Release|Any CPU.Build.0 = Release|Any CPU
+		{3B9ADE73-135D-4961-A51C-14A8908614DD}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{3B9ADE73-135D-4961-A51C-14A8908614DD}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{3B9ADE73-135D-4961-A51C-14A8908614DD}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{3B9ADE73-135D-4961-A51C-14A8908614DD}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

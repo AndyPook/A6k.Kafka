@@ -2,7 +2,7 @@
 using System.Buffers;
 using Bedrock.Framework.Protocols;
 
-namespace TestConsole
+namespace A6k.Kafka
 {
     public class KafkaResponseHeaderReader : IMessageReader<(int MessageLength, int CorrelationId)>
     {

@@ -1,6 +1,6 @@
 ﻿using System.Collections.Generic;
 
-namespace TestConsole
+namespace A6k.Kafka
 {
     //public enum ApiKey : short
     //{

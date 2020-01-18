@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using Bedrock.Framework.Protocols;
 
-namespace TestConsole
+namespace A6k.Kafka
 {
     public class MetadataRequestWriter : IMessageWriter<ICollection<string>>
     {
