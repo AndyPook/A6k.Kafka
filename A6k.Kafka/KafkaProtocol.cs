@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Buffers;
 using System.Buffers.Binary;
 using System.Collections.Concurrent;
@@ -8,11 +8,10 @@ using System.Threading.Tasks;
 using System.Threading.Tasks.Sources;
 using Bedrock.Framework.Protocols;
 using Microsoft.AspNetCore.Connections;
-using Nerdbank.Streams;
 
 namespace A6k.Kafka
 {
-    public class KafkaProtocol
+    public partial class KafkaProtocol
     {
         private readonly ConnectionContext connection;
         private readonly string clientId;
@@ -58,6 +57,7 @@ namespace A6k.Kafka
         private async Task ProcessOutbound(CancellationToken cancellationToken = default)
         {
             await Task.Yield();
+
             try
             {
                 foreach (var op in outbound.GetConsumingEnumerable(cancellationToken))

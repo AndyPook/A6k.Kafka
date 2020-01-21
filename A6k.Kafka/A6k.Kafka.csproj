@@ -6,9 +6,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Bedrock.Framework" Version="0.1.38-alpha.gd25d5b37ad" />
-    <PackageReference Include="Bedrock.Framework.Experimental" Version="0.1.38-alpha.gd25d5b37ad" />
-    <PackageReference Include="Nerdbank.Streams" Version="2.4.50" />
+    <PackageReference Include="Bedrock.Framework" Version="0.1.42-alpha.ga0467b3308" />
   </ItemGroup>
 
 </Project>
