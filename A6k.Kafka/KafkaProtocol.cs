@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Buffers;
 using System.Buffers.Binary;
 using System.Collections.Concurrent;
@@ -27,16 +27,6 @@ namespace A6k.Kafka
 
             _ = ProcessOutbound();
             _ = ProcessResponsesAsync();
-        }
-
-        public async Task<ApiVersionResponse> ApiVersion()
-        {
-            return await SendRequest<object, ApiVersionResponse>(ApiKey.ApiVersion, 0, null, null, new ApiVersionResponseReader());
-        }
-
-        public async Task<MetadataResponse> Metadata(ICollection<string> topics = null)
-        {
-            return await SendRequest(ApiKey.Metadata, 2, topics, new MetadataRequestWriter(), new MetadataResponseReader());
         }
 
         private async Task<TResponse> SendRequest<TRequest, TResponse>(short apikey, short version, TRequest request, IMessageWriter<TRequest> messageWriter, IMessageReader<TResponse> messageReader)
