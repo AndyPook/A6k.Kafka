@@ -8,6 +8,15 @@ namespace A6k.Kafka
     {
         public bool TryParseMessage(in ReadOnlySequence<byte> input, ref SequencePosition consumed, ref SequencePosition examined, out (int MessageLength, int CorrelationId) message)
         {
+            /* https://cwiki.apache.org/confluence/display/KAFKA/A+Guide+To+The+Kafka+Protocol#AGuideToTheKafkaProtocol-Responses
+                +-----------------------------------------------+
+                |                 Length (32)                   |
+                +---------------+---------------+---------------+
+                |   CorrelationId (32) |
+                +=+=============================================================+
+                |                   Response Payload (0...)                   ...
+                +---------------------------------------------------------------+
+            */
             message = default;
             var reader = new SequenceReader<byte>(input);
 
