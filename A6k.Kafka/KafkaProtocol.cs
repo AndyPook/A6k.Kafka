@@ -72,31 +72,27 @@ namespace A6k.Kafka
 
             async ValueTask SendRequest(Op op)
             {
-                lock (inflight)
-                {
-                    inflight.AddLast(op);
-                }
+                PushOp(op);
 
-                var p = new PrefixingBufferWriter<byte>(connection.Transport.Output, sizeof(int));
-                var h = new RequestHeaderWriter();
-                h.WriteMessage(new RequestHeaderV1
-                {
-                    ApiKey = op.ApiKey,
-                    ApiVersion = op.Version,
-                    CorrelationId = op.CorrelationId,
-                    ClientId = clientId
-                }, p);
+                var buffer = new MemoryBufferWriter<byte>();
 
-                op.WriteMessage(p);
+                // write v1 Header
+                buffer.WriteShort(op.ApiKey);
+                buffer.WriteShort(op.Version);
+                buffer.WriteInt(op.CorrelationId);
+                buffer.WriteString(clientId);
 
-                BinaryPrimitives.WriteInt32BigEndian(p.Prefix.Span, (int)p.Length);
-                p.Commit();
+                op.WriteMessage(buffer);
+
+                connection.Transport.Output.WriteInt((int)buffer.Length);
+                buffer.CopyTo(connection.Transport.Output);
                 await connection.Transport.Output.FlushAsync().ConfigureAwait(false);
             }
         }
 
         private async ValueTask ProcessResponsesAsync()
         {
+            await Task.Yield();
             var headerReader = new KafkaResponseHeaderReader();
             var reader = connection.CreateReader();
 
@@ -111,7 +107,7 @@ namespace A6k.Kafka
                         break;
                     reader.Advance();
 
-                    var op = GetOp(header.CorrelationId);
+                    var op = PopOp(header.CorrelationId);
                     if (op == null)
                         throw new InvalidOperationException("no outstanding op for correlationId: " + header.CorrelationId);
 
@@ -124,7 +120,16 @@ namespace A6k.Kafka
             }
         }
 
-        private Op GetOp(int correctionId)
+
+        private void PushOp(Op op)
+        {
+            // haven't found a lockfree collection for this yet
+            lock (inflight)
+            {
+                inflight.AddLast(op);
+            }
+        }
+        private Op PopOp(int correctionId)
         {
             lock (inflight)
             {
