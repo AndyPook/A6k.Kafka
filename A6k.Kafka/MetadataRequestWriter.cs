@@ -10,18 +10,18 @@ namespace A6k.Kafka
         {
             if (message == null)
             {
-                output.Write(-1);
+                output.WriteInt(-1);
                 return;
             }
             else if (message.Count == 0)
             {
-                output.Write(0);
+                output.WriteInt(0);
                 return;
             }
 
-            output.Write(message.Count);
+            output.WriteInt(message.Count);
             foreach (var topic in message)
-                output.Write(topic);
+                output.WriteString(topic);
         }
     }
 }
