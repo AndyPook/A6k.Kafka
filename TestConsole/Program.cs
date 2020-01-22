@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Linq;
 using System.Net;
+using System.Text;
 using System.Threading.Tasks;
 using A6k.Kafka;
 using Bedrock.Framework;
@@ -29,8 +30,8 @@ namespace TestConsole
                 .UseConnectionLogging()
                 .Build();
 
-            Console.WriteLine(BitConverter.IsLittleEndian?"little":"big");
-            
+            Console.WriteLine(BitConverter.IsLittleEndian ? "little" : "big");
+
             await using var connection = await client.ConnectAsync(new IPEndPoint(IPAddress.Loopback, 29092));
             var kafka = new KafkaProtocol(connection, "fred");
             Console.WriteLine("\n\n");
@@ -38,10 +39,68 @@ namespace TestConsole
             //await GetVersion(kafka);
             //await GetMetadata(kafka);
             //await Produce(kafka);
-            await FindCoordinator(kafka);
+            //await FindCoordinator(kafka);
+            await Fetch(kafka);
 
             Console.WriteLine("done...");
             Console.ReadLine();
+        }
+
+        private static async Task Fetch(KafkaProtocol kafka)
+        {
+            Console.WriteLine("----- Fetch");
+
+            var req = new FetchRequest
+            {
+                ReplicaId = -1,
+                MaxWaitTime = 100,
+                MinBytes = 1,
+                MaxBytes = 64 * 1024,
+                IsolationLevel = 0,
+                SessionId = 0,
+                SessionEpoc = -1,
+                Topics = new FetchRequest.Topic[]
+                {
+                    new FetchRequest.Topic
+                    {
+                        TopicName="test-topic",
+                        Partitions= new FetchRequest.Topic.Partition[]
+                        {
+                            new FetchRequest.Topic.Partition
+                            {
+                                PartitionId=0,
+                                CurrentLeaderEpoc=-1,
+                                FetchOffset=0,
+                                LogStartOffset=-1,
+                                PartitionMaxBytes=32*1024
+                            }
+                        }
+                    }
+                }
+            };
+
+            var response = await kafka.Fetch(req);
+            Console.WriteLine($"throttle:     {response.ThrottleTime}");
+            Console.WriteLine($"errorCode:    {response.ErrorCode}");
+
+            foreach (var r in response.Responses)
+            {
+                Console.WriteLine($"topic: {r.TopicName}");
+                foreach (var pr in r.PartitionResponses)
+                {
+                    Console.WriteLine("  partition: " + pr.PartitionId);
+                    foreach (var batch in pr.RecordBatches)
+                    {
+                        Console.WriteLine("    batch offset: " + batch.BaseOffset);
+                        foreach (var rec in batch.Records)
+                        {
+                            Console.WriteLine("      offset: " + rec.Offset);
+                            Console.WriteLine("      key   : " + Encoding.UTF8.GetString(rec.Key));
+                            Console.WriteLine("      val   : " + Encoding.UTF8.GetString(rec.Value));
+                        }
+                    }
+                }
+            }
         }
 
         private static async Task FindCoordinator(KafkaProtocol kafka)
@@ -60,10 +119,10 @@ namespace TestConsole
         {
             Console.WriteLine("----- JoinGroup");
 
-            var response = await kafka.JoingGroup(new JoinGroupRequest
+            var response = await kafka.JoinGroup(new JoinGroupRequest
             {
-                GroupId = "test_"+Guid.NewGuid().ToString(),
-                SessionTimeout =10000,
+                GroupId = "test_" + Guid.NewGuid().ToString(),
+                SessionTimeout = 10000,
                 RebalanceTimeout = 300000,
                 ProtocolType = "consumer",
                 Protocols = new JoinGroupRequest.Protocol[]
@@ -78,7 +137,7 @@ namespace TestConsole
             Console.WriteLine($"ProtocolName: {response.ProtocolName}");
             Console.WriteLine($"Leader:       {response.Leader}");
             Console.WriteLine($"memberId:     {response.MemberId}");
-            foreach(var m in response.Members)
+            foreach (var m in response.Members)
                 Console.WriteLine($"  memberId:{m.MemberId} group:{m.GroupInstanceId} meta:{(m.Metadata?.Length.ToString() ?? "NONE")}");
         }
 
