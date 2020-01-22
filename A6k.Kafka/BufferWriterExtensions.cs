@@ -137,6 +137,12 @@ namespace A6k.Kafka
 
         public static void WriteArray<T>(this IBufferWriter<byte> output, T[] array, Action<T, IBufferWriter<byte>> writer)
         {
+            if(array==null)
+            {
+                output.WriteInt(0);
+                return;
+            }
+
             output.WriteInt(array.Length);
             for(int i = 0; i < array.Length; i++)
                 writer(array[i], output);

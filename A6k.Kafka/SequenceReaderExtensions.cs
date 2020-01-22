@@ -13,6 +13,12 @@ namespace A6k.Kafka
         public static bool TryReadArrayOfShort(ref this SequenceReader<byte> reader, out short[] value) => reader.TryReadArray(TryReadShort, out value);
         public static bool TryReadArrayOfString(ref this SequenceReader<byte> reader, out string[] value) => reader.TryReadArray(TryReadString, out value);
 
+        public static bool TryReadByte(ref this SequenceReader<byte> reader, out byte value)
+        {
+            if (!reader.TryRead(out value))
+                return false;
+            return true;
+        }
         public static bool TryReadShort(ref this SequenceReader<byte> reader, out short value)
         {
             if (!reader.TryReadBigEndian(out value))
@@ -20,6 +26,12 @@ namespace A6k.Kafka
             return true;
         }
         public static bool TryReadInt(ref this SequenceReader<byte> reader, out int value)
+        {
+            if (!reader.TryReadBigEndian(out value))
+                return false;
+            return true;
+        }
+        public static bool TryReadLong(ref this SequenceReader<byte> reader, out long value)
         {
             if (!reader.TryReadBigEndian(out value))
                 return false;
@@ -56,7 +68,7 @@ namespace A6k.Kafka
 
             if ((value & 0x1) == 0x1)
                 result = (-1 * ((long)(value >> 1) + 1));
-            else 
+            else
                 result = (long)(value >> 1);
             return true;
         }
@@ -129,6 +141,29 @@ namespace A6k.Kafka
             reader.Advance(length);
             return true;
         }
+        public static bool TryReadCompactString(ref this SequenceReader<byte> reader, out string value)
+        {
+            // Represents a sequence of characters. First the length N + 1 is given as an UNSIGNED_VARINT.
+            // Then N bytes follow which are the UTF-8 encoding of the character sequence.
+
+            value = null;
+            if (!reader.TryReadVarint32(out int length))
+                return false;
+            if (length == 0)
+            {
+                value = string.Empty;
+                return true;
+            }
+
+            var span = reader.UnreadSpan;
+            if (span.Length < length)
+                return TryReadMultisegmentUtf8String(ref reader, length, out value);
+
+            var slice = span.Slice(0, length);
+            value = Encoding.UTF8.GetString(slice);
+            reader.Advance(length);
+            return true;
+        }
 
         private static unsafe bool TryReadMultisegmentUtf8String(ref SequenceReader<byte> reader, int length, out string value)
         {
@@ -151,6 +186,52 @@ namespace A6k.Kafka
             return true;
         }
 
+        public static bool TryReadCompactBytes(ref this SequenceReader<byte> reader, out ReadOnlySpan<byte> value)
+        {
+            // Represents a sequence of characters. First the length N + 1 is given as an UNSIGNED_VARINT.
+            // Then N bytes follow which are the UTF-8 encoding of the character sequence.
+
+            value = null;
+            if (!reader.TryReadVarint32(out int length))
+                return false;
+            if (length <= 0)
+            {
+                value = Span<byte>.Empty;
+                return true;
+            }
+
+            var span = reader.UnreadSpan;
+            if (span.Length < length)
+                return TryReadMultisegmentBytes(ref reader, length, out value);
+
+            var slice = span.Slice(0, length);
+            value = slice;
+            reader.Advance(length);
+            return true;
+        }
+
+        private static unsafe bool TryReadMultisegmentBytes(ref SequenceReader<byte> reader, int length, out ReadOnlySpan<byte> value)
+        {
+            Debug.Assert(reader.UnreadSpan.Length < length);
+
+            // Not enough data in the current segment, try to peek for the data we need.
+            // In my use case, these strings cannot be more than 64kb, so stack memory is fine.
+            byte* buffer = stackalloc byte[length];
+            // Hack because the compiler thinks reader.TryCopyTo could store the span.
+            var tempSpan = new Span<byte>(buffer, length);
+
+            if (!reader.TryCopyTo(tempSpan))
+            {
+                value = default;
+                return false;
+            }
+
+            value = tempSpan;
+            reader.Advance(length);
+            return true;
+        }
+
+
         public static bool TryReadArray<T>(ref this SequenceReader<byte> reader, TryParse<T> readItem, Action<T[]> setter)
         {
             if (reader.TryReadArray(readItem, out var arr))
@@ -158,11 +239,29 @@ namespace A6k.Kafka
             setter(arr);
             return true;
         }
-        public static bool TryReadArray<T>(ref this SequenceReader<byte> reader, TryParse<T> readItem, out T[] value)
+        public static bool TryReadArray<T>(ref this SequenceReader<byte> reader, TryParse<T> readItem, out T[] value, bool useVarIntLength = false)
         {
             value = default;
-            if (!reader.TryReadBigEndian(out int count))
-                return false;
+            int count;
+            if (useVarIntLength)
+            {
+                if (!reader.TryReadVarint32(out count))
+                    return false;
+            }
+            else
+            {
+                if (!reader.TryReadBigEndian(out count))
+                    return false;
+            }
+
+            if (count == -1)
+                return true;
+            if (count == 0)
+            {
+                value = new T[0];
+                return true;
+            }
+
             var items = new T[count];
             for (int i = 0; i < count; i++)
             {
