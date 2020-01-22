@@ -1,4 +1,4 @@
-﻿using System.Buffers.Binary;
+using System.Buffers.Binary;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Bedrock.Framework.Protocols;
@@ -31,7 +31,7 @@ namespace A6k.Kafka
             return await SendRequest(ApiKey.FindCoordinator, 2, (key, keyType), new FindCoordinatorRequestWriter(), new FindCoordinatorResponseReader());
         }
 
-        public async Task<JoinGroupResponse> JoingGroup(JoinGroupRequest request)
+        public async Task<JoinGroupResponse> JoinGroup(JoinGroupRequest request)
         {
             return await SendRequest(ApiKey.JoinGroup, 5, request, new JoinGroupRequestWriter(), new JoinGroupResponseReader());
         }

@@ -3,6 +3,41 @@ using Bedrock.Framework.Protocols;
 
 namespace A6k.Kafka
 {
+    public class JoinGroupRequest
+    {
+        public string GroupId { get; set; }
+        public int SessionTimeout { get; set; }
+        public int RebalanceTimeout { get; set; }
+        public string MemberId { get; set; }
+        public string GroupInstanceId { get; set; }
+        public string ProtocolType { get; set; }
+        public Protocol[] Protocols { get; set; }
+
+        public class Protocol
+        {
+            public string Name { get; set; }
+            public byte[] Metadata { get; set; }
+        }
+    }
+
+    public class JoinGroupResponse
+    {
+        public int ThrottleTime { get; set; }
+        public short ErrorCode { get; set; }
+        public int GenerationId { get; set; }
+        public string ProtocolName { get; set; }
+        public string Leader { get; set; }
+        public string MemberId { get; set; }
+        public Member[] Members { get; set; }
+
+        public class Member
+        {
+            public string MemberId { get; set; }
+            public string GroupInstanceId { get; set; }
+            public byte[] Metadata { get; set; }
+        }
+    }
+
     public class JoinGroupRequestWriter : IMessageWriter<JoinGroupRequest>
     {
         public void WriteMessage(JoinGroupRequest message, IBufferWriter<byte> output)
@@ -74,41 +109,6 @@ namespace A6k.Kafka
                 Metadata = metadata
             };
             return true;
-        }
-    }
-
-    public class JoinGroupRequest
-    {
-        public string GroupId { get; set; }
-        public int SessionTimeout { get; set; }
-        public int RebalanceTimeout { get; set; }
-        public string MemberId { get; set; }
-        public string GroupInstanceId { get; set; }
-        public string ProtocolType { get; set; }
-        public Protocol[] Protocols { get; set; }
-
-        public class Protocol
-        {
-            public string Name { get; set; }
-            public byte[] Metadata { get; set; }
-        }
-    }
-
-    public class JoinGroupResponse
-    {
-        public int ThrottleTime { get; set; }
-        public short ErrorCode { get; set; }
-        public int GenerationId { get; set; }
-        public string ProtocolName { get; set; }
-        public string Leader { get; set; }
-        public string MemberId { get; set; }
-        public Member[] Members { get; set; }
-
-        public class Member
-        {
-            public string MemberId { get; set; }
-            public string GroupInstanceId { get; set; }
-            public byte[] Metadata { get; set; }
         }
     }
 }
