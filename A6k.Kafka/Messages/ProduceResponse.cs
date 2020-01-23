@@ -1,14 +1,28 @@
-﻿namespace A6k.Kafka.Messages
+﻿using System.Collections.Generic;
+
+namespace A6k.Kafka.Messages
 {
     public class ProduceResponse
     {
-        public Response[] Responses { get; set; }
-        public int ThrottleTime { get; set; }
+        public ProduceResponse(Response[] responses, int throttleTime)
+        {
+            Responses = responses;
+            ThrottleTime = throttleTime;
+        }
+
+        public Response[] Responses { get; }
+        public int ThrottleTime { get; }
 
         public class Response
         {
-            public string Topic { get; set; }
-            public PartitionResponse[] Partitions { get; set; }
+            public Response(string topic, PartitionResponse[] partitions)
+            {
+                Topic = topic;
+                Partitions = partitions;
+            }
+
+            public string Topic { get; }
+            public IReadOnlyCollection<PartitionResponse> Partitions { get; }
 
             public class PartitionResponse
             {

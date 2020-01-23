@@ -1,20 +1,41 @@
-﻿namespace A6k.Kafka.Messages
+﻿using System;
+using System.Collections.Generic;
+
+namespace A6k.Kafka.Messages
 {
     public class JoinGroupResponse
     {
-        public int ThrottleTime { get; set; }
-        public short ErrorCode { get; set; }
-        public int GenerationId { get; set; }
-        public string ProtocolName { get; set; }
-        public string Leader { get; set; }
-        public string MemberId { get; set; }
-        public Member[] Members { get; set; }
+        public JoinGroupResponse(int throttleTime, short errorCode, int generationId, string protocolName, string leader, string memberId, Member[] members)
+        {
+            ThrottleTime = throttleTime;
+            ErrorCode = errorCode;
+            GenerationId = generationId;
+            ProtocolName = protocolName;
+            Leader = leader;
+            MemberId = memberId;
+            Members = members;
+        }
+
+        public int ThrottleTime { get; }
+        public short ErrorCode { get; }
+        public int GenerationId { get; }
+        public string ProtocolName { get; }
+        public string Leader { get; }
+        public string MemberId { get; }
+        public IReadOnlyCollection<Member> Members { get; }
 
         public class Member
         {
-            public string MemberId { get; set; }
-            public string GroupInstanceId { get; set; }
-            public byte[] Metadata { get; set; }
+            public Member(string memberId, string groupInstanceId, byte[] metadata)
+            {
+                MemberId = memberId;
+                GroupInstanceId = groupInstanceId;
+                Metadata = metadata;
+            }
+
+            public string MemberId { get; }
+            public string GroupInstanceId { get; }
+            public byte[] Metadata { get; }
         }
     }
 }

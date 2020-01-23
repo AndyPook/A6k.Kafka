@@ -1,4 +1,6 @@
-﻿namespace A6k.Kafka.Messages
+﻿using System.Collections.Generic;
+
+namespace A6k.Kafka.Messages
 {
     public class RecordBatch
     {
@@ -14,7 +16,7 @@
         public long ProducerId { get; set; }
         public short ProducerEpoc { get; set; }
         public int BaseSequence { get; set; }
-        public Record[] Records { get; set; }
+        public IReadOnlyCollection<Record> Records { get; set; }
 
         public class Record
         {
@@ -24,12 +26,18 @@
             public long Offset { get; set; }
             public byte[] Key { get; set; }
             public byte[] Value { get; set; }
-            public Header[] Headers { get; set; }
+            public IReadOnlyCollection<Header> Headers { get; set; }
 
             public class Header
             {
-                public string Key { get; set; }
-                public byte[] Value { get; set; }
+                public Header(string key, byte[] value)
+                {
+                    Key = key;
+                    Value = value;
+                }
+
+                public string Key { get; }
+                public byte[] Value { get; }
             }
         }
     }

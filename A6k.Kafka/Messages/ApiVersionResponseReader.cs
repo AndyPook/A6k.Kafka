@@ -12,7 +12,7 @@ namespace A6k.Kafka.Messages
                 return false;
             if(errorCode>0)
             {
-                message = new ApiVersionResponse(errorCode, new ApiVersionResponse.ApiVersion[0]);
+                message = new ApiVersionResponse(errorCode);
                 return true;
             }
             if (!reader.TryReadBigEndian(out int count))
@@ -30,7 +30,7 @@ namespace A6k.Kafka.Messages
                 apiVersions[i] = new ApiVersionResponse.ApiVersion(apikey, min, max);
             }
 
-            message = new ApiVersionResponse(errorCode, apiVersions);
+            message = new ApiVersionResponse(apiVersions);
             return true;
         }
     }

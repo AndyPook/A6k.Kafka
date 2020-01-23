@@ -1,7 +1,17 @@
-﻿namespace A6k.Kafka.Messages
+﻿using System.Collections.Generic;
+
+namespace A6k.Kafka.Messages
 {
     public class FetchResponse
     {
+        public FetchResponse(int throttleTime, short errorCode, int sessionId, IReadOnlyCollection<Response> responses)
+        {
+            ThrottleTime = throttleTime;
+            ErrorCode = errorCode;
+            SessionId = sessionId;
+            Responses = responses;
+        }
+
         //Fetch Response(Version: 11) => throttle_time_ms error_code session_id[responses]
         //  throttle_time_ms => INT32
         //  error_code => INT16
@@ -21,32 +31,70 @@
         //        preferred_read_replica => INT32
         //      record_set => RECORDS
 
-        public int ThrottleTime { get; set; }
-        public short ErrorCode { get; set; }
-        public int SessionId { get; set; }
-        public Response[] Responses { get; set; }
+        public int ThrottleTime { get; }
+        public short ErrorCode { get; }
+        public int SessionId { get; }
+        public IReadOnlyCollection<Response> Responses { get; }
 
         public class Response
         {
-            public string TopicName { get; set; }
-            public PartitionResponse[] PartitionResponses { get; set; }
+            public Response(string topicName, IReadOnlyCollection<PartitionResponse> partitionResponses)
+            {
+                TopicName = topicName;
+                PartitionResponses = partitionResponses;
+            }
+
+            public string TopicName { get; }
+            public IReadOnlyCollection<PartitionResponse> PartitionResponses { get; }
 
             public class PartitionResponse
             {
-                public int PartitionId { get; set; }
-                public short ErrorCode { get; set; }
-                public long HighWaterMark { get; set; }
-                public long LastStableOffset { get; set; }
-                public long LogStartOffset { get; set; }
-                public AbortedTransaction[] AbortedTransactions { get; set; }
-                public int PreferredReadReplica { get; set; }
+                public PartitionResponse(
+                    int partitionId,
+                    short errorCode)
+                {
+                    PartitionId = partitionId;
+                    ErrorCode = errorCode;
+                }
 
-                public RecordBatch[] RecordBatches { get; set; }
+                public PartitionResponse(
+                    int partitionId,
+                    long highWaterMark,
+                    long lastStableOffset,
+                    long logStartOffset,
+                    AbortedTransaction[] abortedTransactions,
+                    int preferredReadReplica,
+                    IReadOnlyCollection<RecordBatch> recordBatches)
+                {
+                    PartitionId = partitionId;
+                    HighWaterMark = highWaterMark;
+                    LastStableOffset = lastStableOffset;
+                    LogStartOffset = logStartOffset;
+                    AbortedTransactions = abortedTransactions;
+                    PreferredReadReplica = preferredReadReplica;
+                    RecordBatches = recordBatches;
+                }
+
+                public int PartitionId { get; }
+                public short ErrorCode { get; }
+                public long HighWaterMark { get; }
+                public long LastStableOffset { get; }
+                public long LogStartOffset { get; }
+                public AbortedTransaction[] AbortedTransactions { get; }
+                public int PreferredReadReplica { get; }
+
+                public IReadOnlyCollection<RecordBatch> RecordBatches { get; }
 
                 public class AbortedTransaction
                 {
-                    public long ProducerId { get; set; }
-                    public long FirstOffset { get; set; }
+                    public AbortedTransaction(long producerId, long firstOffset)
+                    {
+                        ProducerId = producerId;
+                        FirstOffset = firstOffset;
+                    }
+
+                    public long ProducerId { get; }
+                    public long FirstOffset { get; }
                 }
             }
         }

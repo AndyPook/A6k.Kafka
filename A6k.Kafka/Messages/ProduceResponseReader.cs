@@ -13,11 +13,7 @@ namespace A6k.Kafka.Messages
             if (!reader.TryReadInt(out var throttleTime))
                 return false;
 
-            message = new ProduceResponse
-            {
-                Responses = responses,
-                ThrottleTime = throttleTime
-            };
+            message = new ProduceResponse(responses, throttleTime);
             return true;
         }
 
@@ -29,11 +25,7 @@ namespace A6k.Kafka.Messages
             if (!reader.TryReadArray<ProduceResponse.Response.PartitionResponse>(TryParsePartition, out var partitions))
                 return false;
 
-            response = new ProduceResponse.Response
-            {
-                Topic = topic,
-                Partitions = partitions
-            };
+            response = new ProduceResponse.Response(topic, partitions);
             return true;
         }
 

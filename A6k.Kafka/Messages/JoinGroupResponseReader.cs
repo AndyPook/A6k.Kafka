@@ -24,15 +24,15 @@ namespace A6k.Kafka.Messages
                 return false;
 
             message = new JoinGroupResponse
-            {
-                ThrottleTime = throttleTime,
-                ErrorCode = errorCode,
-                GenerationId = generationId,
-                ProtocolName = protocolName,
-                Leader = leader,
-                MemberId = memberId,
-                Members = members
-            };
+            (
+                throttleTime,
+                errorCode,
+                generationId,
+                protocolName,
+                leader,
+                memberId,
+                members
+            );
             return true;
         }
 
@@ -46,12 +46,7 @@ namespace A6k.Kafka.Messages
             if (!reader.TryReadBytes(out var metadata))
                 return false;
 
-            member = new JoinGroupResponse.Member
-            {
-                MemberId = memberId,
-                GroupInstanceId = groupInstanceId,
-                Metadata = metadata
-            };
+            member = new JoinGroupResponse.Member(memberId, groupInstanceId, metadata);
             return true;
         }
     }

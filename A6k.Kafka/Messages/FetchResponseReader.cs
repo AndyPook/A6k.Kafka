@@ -18,13 +18,7 @@ namespace A6k.Kafka.Messages
             if (!reader.TryReadArray<FetchResponse.Response>(TryParseReponse, out var responses))
                 return false;
 
-            message = new FetchResponse
-            {
-                ThrottleTime = throttleTime,
-                ErrorCode = errorCode,
-                SessionId = sessionId,
-                Responses = responses
-            };
+            message = new FetchResponse(throttleTime, errorCode, sessionId, responses);
             return true;
         }
 
@@ -36,11 +30,7 @@ namespace A6k.Kafka.Messages
             if (!reader.TryReadArray<FetchResponse.Response.PartitionResponse>(TryParsePartitionResponse, out var responses))
                 return false;
 
-            message = new FetchResponse.Response
-            {
-                TopicName = topicName,
-                PartitionResponses = responses
-            };
+            message = new FetchResponse.Response(topicName, responses);
             return true;
         }
 
@@ -74,16 +64,15 @@ namespace A6k.Kafka.Messages
                 batches.Add(recordBatch);
             }
 
-            message = new FetchResponse.Response.PartitionResponse
-            {
-                PartitionId = partitionId,
-                ErrorCode = errorCode,
-                HighWaterMark = highWaterMark,
-                LastStableOffset = lastStableOffset,
-                LogStartOffset = logStartOffset,
-                PreferredReadReplica = perferredReadReplica,
-                RecordBatches = batches.ToArray()
-            };
+            message = new FetchResponse.Response.PartitionResponse(
+                partitionId,
+                highWaterMark,
+                lastStableOffset,
+                logStartOffset,
+                aborted,
+                perferredReadReplica,
+                batches.ToArray()
+            );
             return true;
         }
 
@@ -95,11 +84,7 @@ namespace A6k.Kafka.Messages
             if (!reader.TryReadLong(out var firstOffset))
                 return false;
 
-            message = new FetchResponse.Response.PartitionResponse.AbortedTransaction
-            {
-                ProducerId = producerId,
-                FirstOffset = firstOffset
-            };
+            message = new FetchResponse.Response.PartitionResponse.AbortedTransaction(producerId, firstOffset);
             return true;
         }
 
@@ -205,11 +190,7 @@ namespace A6k.Kafka.Messages
             if (!reader.TryReadCompactBytes(out var value))
                 return false;
 
-            message = new RecordBatch.Record.Header
-            {
-                Key = key,
-                Value = value.ToArray()
-            };
+            message = new RecordBatch.Record.Header(key, value.ToArray());
             return true;
         }
     }

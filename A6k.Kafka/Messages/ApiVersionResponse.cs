@@ -5,9 +5,14 @@ namespace A6k.Kafka.Messages
 {
     public class ApiVersionResponse
     {
-        public ApiVersionResponse(short errorCode, IReadOnlyCollection<ApiVersion> apiVersions)
+        public ApiVersionResponse(short errorCode)
         {
             ErrorCode = errorCode;
+            ApiVersions = new ApiVersionResponse.ApiVersion[0];
+        }
+
+        public ApiVersionResponse(IReadOnlyCollection<ApiVersion> apiVersions)
+        {
             ApiVersions = apiVersions;
         }
 
