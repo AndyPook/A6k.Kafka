@@ -1,6 +1,6 @@
 ﻿using System.Buffers;
 
-namespace A6k.Kafka
+namespace A6k.Kafka.Messages
 {
     public class ProduceResponseReader : KafkaResponseReader<ProduceResponse>
     {

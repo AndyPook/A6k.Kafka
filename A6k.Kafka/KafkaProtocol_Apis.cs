@@ -1,7 +1,8 @@
-﻿using System.Buffers.Binary;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Threading.Tasks;
 using Bedrock.Framework.Protocols;
+
+using A6k.Kafka.Messages;
 
 namespace A6k.Kafka
 {

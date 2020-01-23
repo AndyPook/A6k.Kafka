@@ -2,7 +2,7 @@
 using System.Buffers;
 using Bedrock.Framework.Protocols;
 
-namespace A6k.Kafka
+namespace A6k.Kafka.Messages
 {
     public class ProduceRequestWriter<TKey, TValue> : IMessageWriter<Message<TKey, TValue>>
     {

@@ -1,17 +1,7 @@
 ﻿using System.Buffers;
-using Bedrock.Framework.Protocols;
 
-namespace A6k.Kafka
+namespace A6k.Kafka.Messages
 {
-    public class FindCoordinatorRequestWriter : IMessageWriter<(string Key, CoordinatorType KeyType)>
-    {
-        public void WriteMessage((string Key, CoordinatorType KeyType) message, IBufferWriter<byte> output)
-        {
-            output.WriteString(message.Key);
-            output.WriteByte((byte)message.KeyType);
-        }
-    }
-
     public class FindCoordinatorResponseReader : KafkaResponseReader<FindCoordinatorResponse>
     {
         protected override bool TryParseMessage(ref SequenceReader<byte> reader, out FindCoordinatorResponse message)
@@ -42,15 +32,5 @@ namespace A6k.Kafka
             };
             return true;
         }
-    }
-
-    public class FindCoordinatorResponse
-    {
-        public int ThrottleTime { get; set; }
-        public short ErrorCode { get; set; }
-        public string ErrorMessage { get; set; }
-        public int NodeId { get; set; }
-        public string Host { get; set; }
-        public int Port { get; set; }
     }
 }

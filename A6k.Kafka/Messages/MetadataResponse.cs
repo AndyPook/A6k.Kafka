@@ -1,4 +1,4 @@
-﻿namespace A6k.Kafka
+﻿namespace A6k.Kafka.Messages
 {
     public class MetadataResponse
     {
