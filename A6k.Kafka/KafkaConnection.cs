@@ -11,7 +11,7 @@ using Microsoft.AspNetCore.Connections;
 
 namespace A6k.Kafka
 {
-    public partial class KafkaProtocol
+    public partial class KafkaConnection : IAsyncDisposable
     {
         private readonly ConnectionContext connection;
         private readonly string clientId;
@@ -20,7 +20,7 @@ namespace A6k.Kafka
         private BlockingCollection<Op> outbound = new BlockingCollection<Op>();
         private LinkedList<Op> inflight = new LinkedList<Op>();
 
-        public KafkaProtocol(ConnectionContext connection, string clientId)
+        public KafkaConnection(ConnectionContext connection, string clientId)
         {
             this.connection = connection;
             this.clientId = clientId;
@@ -134,6 +134,8 @@ namespace A6k.Kafka
             }
             return default;
         }
+
+        public ValueTask DisposeAsync() => connection.DisposeAsync();
 
         private abstract class Op
         {

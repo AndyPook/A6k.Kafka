@@ -6,7 +6,7 @@ using A6k.Kafka.Messages;
 
 namespace A6k.Kafka
 {
-    public partial class KafkaProtocol
+    public partial class KafkaConnection
     {
         public async Task<ApiVersionResponse> ApiVersion()
         {

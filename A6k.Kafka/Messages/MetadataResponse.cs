@@ -1,4 +1,6 @@
-﻿namespace A6k.Kafka.Messages
+﻿using System.Collections.Generic;
+
+namespace A6k.Kafka.Messages
 {
     public class MetadataResponse
     {
@@ -10,10 +12,10 @@
             Topics = topics;
         }
 
-        public Broker[] Brokers { get; }
+        public IReadOnlyCollection<Broker> Brokers { get; }
         public string ClusterId { get; }
         public int ControllerId { get; }
-        public TopicMetadata[] Topics { get; }
+        public IReadOnlyCollection<TopicMetadata> Topics { get; }
 
         public class Broker
         {
@@ -47,7 +49,7 @@
             public short ErrorCode { get; }
             public string TopicName { get; }
             public bool IsInternal { get; }
-            public PartitionMetadata[] Partitions { get; }
+            public IReadOnlyCollection<PartitionMetadata> Partitions { get; }
         }
 
         public class PartitionMetadata
@@ -67,8 +69,8 @@
             public short ErrorCode { get; }
             public int PartitionId { get; }
             public int Leader { get; }
-            public int[] Replicas { get; }
-            public int[] Isr { get; }
+            public IReadOnlyCollection<int> Replicas { get; }
+            public IReadOnlyCollection<int> Isr { get; }
         }
     }
 }

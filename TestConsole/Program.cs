@@ -17,19 +17,40 @@ namespace TestConsole
     {
         static async Task Main(string[] args)
         {
-            var kafka = await GetKafka();
-            Console.WriteLine("\n\n");
+            //var kafka = await GetKafka();
             //await GetVersion(kafka);
             //await GetMetadata(kafka);
             //await Produce(kafka);
             //await FindCoordinator(kafka);
-            await Fetch(kafka);
+            //await Fetch(kafka);
+
+
+            var serviceProvider =
+               new ServiceCollection()
+               .AddLogging(builder =>
+               {
+                   builder.SetMinimumLevel(LogLevel.Warning);
+                   builder.AddConsole();
+               })
+               .AddSingleton<KafkaConnectionFactory>()
+               .AddTransient<BrokerManager>()
+              .BuildServiceProvider();
+
+            var brokerMgr = serviceProvider.GetRequiredService<BrokerManager>();
+
+            await brokerMgr.Init("fred", "localhost:29092");
+
+            foreach (var b in brokerMgr.Brokers)
+            {
+                Console.WriteLine($"broker: {b.NodeId} - {b.Host}:{b.Port} (rack={b.Rack})");
+                Console.WriteLine("  " + string.Join(",", b.ApiVersions.Select(x => $"{x.ApiKey}({x.MinVersion}-{x.MaxVersion})")));
+            }
 
             Console.WriteLine("done...");
             Console.ReadLine();
         }
 
-        private static async Task<KafkaProtocol> GetKafka()
+        private static async Task<KafkaConnection> GetKafka()
         {
             var serviceProvider =
                new ServiceCollection()
@@ -48,10 +69,10 @@ namespace TestConsole
             Console.WriteLine(BitConverter.IsLittleEndian ? "little" : "big");
 
             var connection = await client.ConnectAsync(new IPEndPoint(IPAddress.Loopback, 29092));
-            return new KafkaProtocol(connection, "fred");
+            return new KafkaConnection(connection, "fred");
         }
 
-        private static async Task Fetch(KafkaProtocol kafka)
+        private static async Task Fetch(KafkaConnection kafka)
         {
             Console.WriteLine("----- Fetch");
 
@@ -108,7 +129,7 @@ namespace TestConsole
             }
         }
 
-        private static async Task FindCoordinator(KafkaProtocol kafka)
+        private static async Task FindCoordinator(KafkaConnection kafka)
         {
             Console.WriteLine("----- FindCoordinator");
 
@@ -120,7 +141,7 @@ namespace TestConsole
             Console.WriteLine($"host:         {response.Host}");
             Console.WriteLine($"port:         {response.Port}");
         }
-        private static async Task JoinGroup(KafkaProtocol kafka)
+        private static async Task JoinGroup(KafkaConnection kafka)
         {
             Console.WriteLine("----- JoinGroup");
 
@@ -146,7 +167,7 @@ namespace TestConsole
                 Console.WriteLine($"  memberId:{m.MemberId} group:{m.GroupInstanceId} meta:{(m.Metadata?.Length.ToString() ?? "NONE")}");
         }
 
-        private static async Task Produce(KafkaProtocol kafka)
+        private static async Task Produce(KafkaConnection kafka)
         {
             Console.WriteLine("----- Produce");
 
@@ -167,7 +188,7 @@ namespace TestConsole
             }
         }
 
-        private static async Task GetVersion(KafkaProtocol kafka)
+        private static async Task GetVersion(KafkaConnection kafka)
         {
             Console.WriteLine("----- ApiVersion");
             var apiversions = await kafka.ApiVersion();
@@ -176,7 +197,7 @@ namespace TestConsole
                 Console.WriteLine($"{ApiKey.GetName(v.ApiKey).PadRight(20)} {v.MinVersion}->{v.MaxVersion}");
         }
 
-        private static async Task GetMetadata(KafkaProtocol kafka)
+        private static async Task GetMetadata(KafkaConnection kafka)
         {
             Console.WriteLine("----- Metadata");
             var metadata = await kafka.Metadata();
