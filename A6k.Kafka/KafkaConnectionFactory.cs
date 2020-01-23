@@ -2,6 +2,7 @@
 using System.Net;
 using System.Threading.Tasks;
 using Bedrock.Framework;
+using Microsoft.Extensions.Logging;
 
 namespace A6k.Kafka
 {
@@ -9,9 +10,12 @@ namespace A6k.Kafka
     {
         private readonly IServiceProvider serviceProvider;
 
-        public KafkaConnectionFactory(IServiceProvider serviceProvider)
+        public ILogger<KafkaConnectionFactory> Logger { get; }
+
+        public KafkaConnectionFactory(IServiceProvider serviceProvider, ILogger<KafkaConnectionFactory> logger)
         {
             this.serviceProvider = serviceProvider ?? throw new ArgumentNullException(nameof(serviceProvider));
+            Logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
 
         public async Task<KafkaConnection> CreateConnection(EndPoint endPoint, string clientId)
@@ -21,6 +25,7 @@ namespace A6k.Kafka
                 .UseConnectionLogging()
                 .Build();
 
+            Logger.LogInformation("Connecting to: {broker}", endPoint);
             var connection = await client.ConnectAsync(endPoint);
             var kafka = new KafkaConnection(connection, clientId);
             return kafka;
@@ -33,7 +38,7 @@ namespace A6k.Kafka
         }
         public Task<KafkaConnection> CreateConnection(string host, int port, string clientId)
         {
-            if(!IPAddress.TryParse(host, out var addr))
+            if (!IPAddress.TryParse(host, out var addr))
             {
                 string s = host.Replace("localhost", "127.0.0.1");
                 if (!IPAddress.TryParse(s, out addr))

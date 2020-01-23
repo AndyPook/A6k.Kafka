@@ -47,7 +47,10 @@ namespace A6k.Kafka
                     ClusterId = meta.ClusterId;
                     ControllerId = meta.ControllerId;
                     foreach (var broker in meta.Brokers)
+                    {
+                        logger.LogInformation("Discovered: {broker}", server);
                         brokers[broker.NodeId] = new Broker(broker, kafkaConnectionFactory);
+                    }
 
                     break;
                 }
