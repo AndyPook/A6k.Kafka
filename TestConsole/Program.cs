@@ -4,6 +4,7 @@ using System.Net;
 using System.Text;
 using System.Threading.Tasks;
 using A6k.Kafka;
+using A6k.Kafka.Messages;
 using Bedrock.Framework;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -16,26 +17,8 @@ namespace TestConsole
     {
         static async Task Main(string[] args)
         {
-            var serviceProvider =
-                new ServiceCollection()
-                .AddLogging(builder =>
-                {
-                    builder.SetMinimumLevel(LogLevel.Warning);
-                    builder.AddConsole();
-                })
-              .BuildServiceProvider();
-
-            var client = new ClientBuilder(serviceProvider)
-                .UseSockets()
-                .UseConnectionLogging()
-                .Build();
-
-            Console.WriteLine(BitConverter.IsLittleEndian ? "little" : "big");
-
-            await using var connection = await client.ConnectAsync(new IPEndPoint(IPAddress.Loopback, 29092));
-            var kafka = new KafkaProtocol(connection, "fred");
+            var kafka = await GetKafka();
             Console.WriteLine("\n\n");
-
             //await GetVersion(kafka);
             //await GetMetadata(kafka);
             //await Produce(kafka);
@@ -44,6 +27,28 @@ namespace TestConsole
 
             Console.WriteLine("done...");
             Console.ReadLine();
+        }
+
+        private static async Task<KafkaProtocol> GetKafka()
+        {
+            var serviceProvider =
+               new ServiceCollection()
+               .AddLogging(builder =>
+               {
+                   builder.SetMinimumLevel(LogLevel.Warning);
+                   builder.AddConsole();
+               })
+             .BuildServiceProvider();
+
+            var client = new ClientBuilder(serviceProvider)
+                .UseSockets()
+                .UseConnectionLogging()
+                .Build();
+
+            Console.WriteLine(BitConverter.IsLittleEndian ? "little" : "big");
+
+            var connection = await client.ConnectAsync(new IPEndPoint(IPAddress.Loopback, 29092));
+            return new KafkaProtocol(connection, "fred");
         }
 
         private static async Task Fetch(KafkaProtocol kafka)
