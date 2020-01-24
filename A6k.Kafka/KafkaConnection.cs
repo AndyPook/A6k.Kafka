@@ -1,13 +1,13 @@
 ﻿using System;
 using System.Buffers;
-using System.Buffers.Binary;
-using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Threading;
+using System.Threading.Channels;
 using System.Threading.Tasks;
 using System.Threading.Tasks.Sources;
-using Bedrock.Framework.Protocols;
 using Microsoft.AspNetCore.Connections;
+
+using Bedrock.Framework.Protocols;
 
 namespace A6k.Kafka
 {
@@ -17,7 +17,7 @@ namespace A6k.Kafka
         private readonly string clientId;
 
         private int correlationId = 0;
-        private BlockingCollection<Op> outbound = new BlockingCollection<Op>();
+        private ChannelWriter<Op> outboundWriter;
         private LinkedList<Op> inflight = new LinkedList<Op>();
 
         public KafkaConnection(ConnectionContext connection, string clientId)
@@ -25,7 +25,7 @@ namespace A6k.Kafka
             this.connection = connection;
             this.clientId = clientId;
 
-            _ = ProcessOutbound();
+            StartOutbound();
             _ = ProcessResponsesAsync();
         }
 
@@ -40,19 +40,34 @@ namespace A6k.Kafka
                 MessageWriter = messageWriter,
                 MessageReader = messageReader
             };
-            outbound.Add(op);
+            outboundWriter.TryWrite(op);
             return await op.GetResponse();
         }
 
-        private async Task ProcessOutbound(CancellationToken cancellationToken = default)
+        private void StartOutbound(CancellationToken cancellationToken = default)
+        {
+            // adding a bound here just to protect myself
+            // I wouldn't expect this to grow too large
+            // should add some metrics for monitoring
+            var channel = Channel.CreateBounded<Op>(new BoundedChannelOptions(100) { SingleReader = true });
+            outboundWriter = channel.Writer;
+            var reader = channel.Reader;
+
+            _ = ProcessOutbound(reader, cancellationToken);
+        }
+
+        private async Task ProcessOutbound(ChannelReader<Op> reader, CancellationToken cancellationToken)
         {
             await Task.Yield();
 
             try
             {
-                foreach (var op in outbound.GetConsumingEnumerable(cancellationToken))
+                while (await reader.WaitToReadAsync(cancellationToken))
                 {
-                    await SendRequest(op);
+                    while (reader.TryRead(out var op))
+                    {
+                        await SendRequest(op);
+                    }
                 }
             }
             catch (OperationCanceledException) { }
