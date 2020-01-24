@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Buffers;
-using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
@@ -8,7 +7,6 @@ using System.Threading.Tasks.Sources;
 using Microsoft.AspNetCore.Connections;
 
 using Bedrock.Framework.Protocols;
-using System.Collections.Concurrent;
 
 namespace A6k.Kafka
 {
@@ -19,7 +17,7 @@ namespace A6k.Kafka
 
         private int correlationId = 0;
         private ChannelWriter<Op> outboundWriter;
-        private ConcurrentDictionary<int, Op> inflight = new ConcurrentDictionary<int, Op>();
+        private ChannelWriter<Op> inflightWriter;
 
         public KafkaConnection(ConnectionContext connection, string clientId)
         {
@@ -27,7 +25,7 @@ namespace A6k.Kafka
             this.clientId = clientId;
 
             StartOutbound();
-            _ = ProcessResponsesAsync();
+            StartInbound();
         }
 
         private async Task<TResponse> SendRequest<TRequest, TResponse>(short apikey, short version, TRequest request, IMessageWriter<TRequest> messageWriter, IMessageReader<TResponse> messageReader)
@@ -57,15 +55,15 @@ namespace A6k.Kafka
             _ = ProcessOutbound(reader, cancellationToken);
         }
 
-        private async Task ProcessOutbound(ChannelReader<Op> reader, CancellationToken cancellationToken)
+        private async Task ProcessOutbound(ChannelReader<Op> outboundReader, CancellationToken cancellationToken)
         {
             await Task.Yield();
 
             try
             {
-                while (await reader.WaitToReadAsync(cancellationToken))
+                while (await outboundReader.WaitToReadAsync(cancellationToken))
                 {
-                    while (reader.TryRead(out var op))
+                    while (outboundReader.TryRead(out var op))
                     {
                         await SendRequest(op);
                     }
@@ -78,8 +76,7 @@ namespace A6k.Kafka
 
             async ValueTask SendRequest(Op op)
             {
-                PushOp(op);
-
+                inflightWriter.TryWrite(op);
                 var buffer = new MemoryBufferWriter<byte>();
 
                 // write v1 Header
@@ -96,7 +93,18 @@ namespace A6k.Kafka
             }
         }
 
-        private async ValueTask ProcessResponsesAsync()
+        private void StartInbound(CancellationToken cancellationToken = default)
+        {
+            // adding a bound here just to protect myself
+            // I wouldn't expect this to grow too large
+            // should add some metrics for monitoring
+            var channel = Channel.CreateBounded<Op>(new BoundedChannelOptions(100) { SingleReader = true });
+            inflightWriter = channel.Writer;
+            var reader = channel.Reader;
+
+            _ = ProcessInbound(reader, cancellationToken);
+        }
+        private async ValueTask ProcessInbound(ChannelReader<Op> inflightReader, CancellationToken cancellationToken)
         {
             await Task.Yield();
             var headerReader = new KafkaResponseHeaderReader();
@@ -113,8 +121,7 @@ namespace A6k.Kafka
                         break;
                     reader.Advance();
 
-                    var op = PopOp(header.CorrelationId);
-                    if (op == null)
+                    if (!inflightReader.TryRead(out var op) || op.CorrelationId != header.CorrelationId)
                         throw new InvalidOperationException("no outstanding op for correlationId: " + header.CorrelationId);
 
                     await op.ParseResponse(reader);
@@ -124,15 +131,6 @@ namespace A6k.Kafka
                     reader.Advance();
                 }
             }
-        }
-
-
-        private void PushOp(Op op) => inflight.TryAdd(op.CorrelationId, op);
-        private Op PopOp(int correctionId)
-        {
-            if (inflight.TryRemove(correctionId, out var op))
-                return op;
-            return default;
         }
 
         public ValueTask DisposeAsync() => connection.DisposeAsync();
