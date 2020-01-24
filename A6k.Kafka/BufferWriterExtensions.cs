@@ -155,6 +155,30 @@ namespace A6k.Kafka
             UnsignedVarInt,
             Crc
         }
+        public static void WritePrefixed<T>(this IBufferWriter<byte> output, ISerializer<T> writer, T item, PrefixType prefixType)
+        {
+            var buffer = new MemoryBufferWriter<byte>();
+            writer.WriteMessage(item, buffer);
+
+            switch (prefixType)
+            {
+                case PrefixType.Int:
+                    output.WriteInt((int)buffer.Length);
+                    break;
+                case PrefixType.VarInt:
+                    output.WriteVarInt(buffer.Length);
+                    break;
+                case PrefixType.UnsignedVarInt:
+                    output.WriteVarInt((ulong)buffer.Length);
+                    break;
+                case PrefixType.Crc:
+                    var crc = Crc32C.Compute(buffer);
+                    output.WriteUInt(crc);
+                    break;
+            }
+
+            buffer.CopyTo(output);
+        }
         public static void WritePrefixed<T>(this IBufferWriter<byte> output, IMessageWriter<T> writer, T item, PrefixType prefixType)
         {
             var buffer = new MemoryBufferWriter<byte>();

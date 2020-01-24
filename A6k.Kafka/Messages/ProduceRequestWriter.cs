@@ -7,10 +7,10 @@ namespace A6k.Kafka.Messages
     public class ProduceRequestWriter<TKey, TValue> : IMessageWriter<Message<TKey, TValue>>
     {
         private string topic;
-        private IMessageWriter<TKey> keyWriter;
-        private IMessageWriter<TValue> valueWriter;
+        private ISerializer<TKey> keyWriter;
+        private ISerializer<TValue> valueWriter;
 
-        public ProduceRequestWriter(string topic, IMessageWriter<TKey> keyWriter, IMessageWriter<TValue> valueWriter)
+        public ProduceRequestWriter(string topic, ISerializer<TKey> keyWriter, ISerializer<TValue> valueWriter)
         {
             this.topic = topic;
             this.keyWriter = keyWriter;

@@ -22,7 +22,7 @@ namespace A6k.Kafka
             return await SendRequest(ApiKey.Metadata, 2, topics, new MetadataRequestWriter(), new MetadataResponseReader());
         }
 
-        public async Task<ProduceResponse> Produce<TKey, TValue>(string topic, Message<TKey, TValue> message, IMessageWriter<TKey> keyWriter, IMessageWriter<TValue> valueWriter)
+        public async Task<ProduceResponse> Produce<TKey, TValue>(string topic, Message<TKey, TValue> message, ISerializer<TKey> keyWriter, ISerializer<TValue> valueWriter)
         {
             return await SendRequest(ApiKey.Produce, 7, message, new ProduceRequestWriter<TKey, TValue>(topic, keyWriter, valueWriter), new ProduceResponseReader());
         }
