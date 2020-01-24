@@ -8,6 +8,7 @@ using System.Threading.Tasks.Sources;
 using Microsoft.AspNetCore.Connections;
 
 using Bedrock.Framework.Protocols;
+using System.Collections.Concurrent;
 
 namespace A6k.Kafka
 {
@@ -18,7 +19,7 @@ namespace A6k.Kafka
 
         private int correlationId = 0;
         private ChannelWriter<Op> outboundWriter;
-        private LinkedList<Op> inflight = new LinkedList<Op>();
+        private ConcurrentDictionary<int, Op> inflight = new ConcurrentDictionary<int, Op>();
 
         public KafkaConnection(ConnectionContext connection, string clientId)
         {
@@ -126,27 +127,11 @@ namespace A6k.Kafka
         }
 
 
-        private void PushOp(Op op)
-        {
-            // haven't found a lockfree collection for this yet
-            lock (inflight)
-            {
-                inflight.AddLast(op);
-            }
-        }
+        private void PushOp(Op op) => inflight.TryAdd(op.CorrelationId, op);
         private Op PopOp(int correctionId)
         {
-            lock (inflight)
-            {
-                for (var node = inflight.First; node != null; node = node.Next)
-                {
-                    if (node.Value.CorrelationId == correctionId)
-                    {
-                        inflight.Remove(node);
-                        return node.Value;
-                    }
-                }
-            }
+            if (inflight.TryRemove(correctionId, out var op))
+                return op;
             return default;
         }
 
