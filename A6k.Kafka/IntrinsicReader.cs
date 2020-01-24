@@ -47,7 +47,7 @@ namespace A6k.Kafka
             { typeof(decimal), Decimal }
         };
 
-        public bool TryGetDeserializer<T>(out IDeserializer<T> deserializer)
+        public static bool TryGetDeserializer<T>(out IDeserializer<T> deserializer)
         {
             if(deserializers.TryGetValue(typeof(T), out var d))
             {
