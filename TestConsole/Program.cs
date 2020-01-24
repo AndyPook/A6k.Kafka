@@ -22,35 +22,76 @@ namespace TestConsole
             //await GetMetadata(kafka);
             //await Produce(kafka);
             //await FindCoordinator(kafka);
+
+
+            //var kafka = await GetKafka(29093);
+            //await Fetch(kafka);
+            //await Fetch(kafka, offset: 1);
+            //await Fetch(kafka, offset: 2);
+            //await Fetch(kafka, offset: 3);
+            //await Fetch(kafka, offset: 4);
+            //await Fetch(kafka, offset: 5);
             //await Fetch(kafka);
 
+            //await BrokerMgr();
 
-            var serviceProvider =
-               new ServiceCollection()
-               .AddLogging(builder =>
-               {
-                   builder.SetMinimumLevel(LogLevel.Warning);
-                   builder.AddConsole();
-               })
-               .AddSingleton<KafkaConnectionFactory>()
-               .AddTransient<BrokerManager>()
-              .BuildServiceProvider();
-
-            var brokerMgr = serviceProvider.GetRequiredService<BrokerManager>();
-
-            await brokerMgr.Init("fred", "localhost:29092");
-
-            foreach (var b in brokerMgr.Brokers)
-            {
-                Console.WriteLine($"broker: {b.NodeId} - {b.Host}:{b.Port} (rack={b.Rack})");
-                Console.WriteLine("  " + string.Join(",", b.ApiVersions.Select(x => $"{x.ApiKey}({x.MinVersion}-{x.MaxVersion})")));
-            }
+            await Consumer();
 
             Console.WriteLine("done...");
             Console.ReadLine();
         }
 
-        private static async Task<KafkaConnection> GetKafka()
+        private static async Task BrokerMgr()
+        {
+            var mdMgr = GetMetadataManager();
+
+            await mdMgr.Init("fred", "localhost:29092");
+
+            foreach (var b in mdMgr.Brokers)
+            {
+                Console.WriteLine($"broker: {b.NodeId} - {b.Host}:{b.Port} (rack={b.Rack})");
+                Console.WriteLine("  " + string.Join(",", b.ApiVersions.Select(x => $"{x.ApiKey}({x.MinVersion}-{x.MaxVersion})")));
+            }
+        }
+
+        private static async Task Consumer()
+        {
+            var mdMgr = GetMetadataManager();
+            var consumer = new Consumer<string, string>(mdMgr, "fred", "localhost:29092");
+            await consumer.Subscribe("test-topic");
+
+            var start = DateTime.UtcNow;
+            while ((DateTime.UtcNow - start).TotalSeconds < 20)
+            {
+                var msg = await consumer.Consume();
+                if (msg == null)
+                {
+                    await Task.Delay(100);
+                    continue;
+                }
+
+                Console.WriteLine($"({msg.Key}) {msg.Value}");
+            }
+        }
+
+        private static MetadataManager GetMetadataManager()
+        {
+            var serviceProvider =
+                           new ServiceCollection()
+                           .AddLogging(builder =>
+                           {
+                               builder.SetMinimumLevel(LogLevel.Warning);
+                               builder.AddConsole();
+                           })
+                           .AddSingleton<KafkaConnectionFactory>()
+                           .AddTransient<MetadataManager>()
+                          .BuildServiceProvider();
+
+            var brokerMgr = serviceProvider.GetRequiredService<MetadataManager>();
+            return brokerMgr;
+        }
+
+        private static async Task<KafkaConnection> GetKafka(int port = 29092)
         {
             var serviceProvider =
                new ServiceCollection()
@@ -68,13 +109,13 @@ namespace TestConsole
 
             Console.WriteLine(BitConverter.IsLittleEndian ? "little" : "big");
 
-            var connection = await client.ConnectAsync(new IPEndPoint(IPAddress.Loopback, 29092));
+            var connection = await client.ConnectAsync(new IPEndPoint(IPAddress.Loopback, port));
             return new KafkaConnection(connection, "fred");
         }
 
-        private static async Task Fetch(KafkaConnection kafka)
+        private static async Task Fetch(KafkaConnection kafka, string topicName = "test-topic", int partitionId = 0, int offset = 0)
         {
-            Console.WriteLine("----- Fetch");
+            Console.WriteLine($"----- Fetch: topic:{topicName} p:{partitionId} o:{offset}");
 
             var req = new FetchRequest
             {
@@ -89,14 +130,14 @@ namespace TestConsole
                 {
                     new FetchRequest.Topic
                     {
-                        TopicName="test-topic",
+                        TopicName=topicName,
                         Partitions= new FetchRequest.Topic.Partition[]
                         {
                             new FetchRequest.Topic.Partition
                             {
-                                PartitionId=0,
+                                PartitionId=partitionId,
                                 CurrentLeaderEpoc=-1,
-                                FetchOffset=0,
+                                FetchOffset=offset,
                                 LogStartOffset=-1,
                                 PartitionMaxBytes=32*1024
                             }
@@ -114,7 +155,7 @@ namespace TestConsole
                 Console.WriteLine($"topic: {r.TopicName}");
                 foreach (var pr in r.PartitionResponses)
                 {
-                    Console.WriteLine("  partition: " + pr.PartitionId);
+                    Console.WriteLine($"  partition: {pr.PartitionId} error: {pr.ErrorCode.ToString()}");
                     foreach (var batch in pr.RecordBatches)
                     {
                         Console.WriteLine("    batch offset: " + batch.BaseOffset);
@@ -209,7 +250,7 @@ namespace TestConsole
             foreach (var t in metadata.Topics)
             {
                 Console.WriteLine($"  {t.TopicName} (Internal={t.IsInternal})");
-                //Console.WriteLine($"    " + string.Join(", ", t.Partitions.Select(p => $"{ p.PartitionId}({p.Leader}")));
+                Console.WriteLine($"    " + string.Join(", ", t.Partitions.Select(p => $"{ p.PartitionId}(l:{p.Leader} r:{(string.Join(",", p.Replicas))} isr:{(string.Join(",", p.Isr))})")));
             }
         }
     }

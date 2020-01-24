@@ -6,16 +6,20 @@ using Microsoft.Extensions.Logging;
 
 using A6k.Kafka.Messages;
 using System.Linq;
+using System.Collections.Concurrent;
+using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Options;
 
 namespace A6k.Kafka
 {
-    public class BrokerManager : IAsyncDisposable
+    public class MetadataManager : IAsyncDisposable
     {
         private readonly KafkaConnectionFactory kafkaConnectionFactory;
-        private readonly ILogger<BrokerManager> logger;
-        private Dictionary<int, Broker> brokers = new Dictionary<int, Broker>();
+        private readonly ILogger<MetadataManager> logger;
 
-        public BrokerManager(KafkaConnectionFactory kafkaConnectionFactory, ILogger<BrokerManager> logger)
+        private ConcurrentDictionary<int, Broker> brokers = new ConcurrentDictionary<int, Broker>();
+
+        public MetadataManager(KafkaConnectionFactory kafkaConnectionFactory, ILogger<MetadataManager> logger)
         {
             this.kafkaConnectionFactory = kafkaConnectionFactory ?? throw new ArgumentNullException(nameof(kafkaConnectionFactory));
             this.logger = logger ?? throw new ArgumentNullException(nameof(logger));
@@ -64,7 +68,24 @@ namespace A6k.Kafka
 
             foreach (var broker in brokers.Values)
                 await broker.Init(clientId);
+
+            Topics = new TopicMetadataCache(this);
         }
+
+        public async Task GetMetadata()
+        {
+            var broker = GetRandomBroker();
+            var metadata = await broker.Connection.Metadata("");
+
+        }
+
+        public Broker GetRandomBroker()
+        {
+            // not random, but this'll do for now
+            return brokers.Values.First();
+        }
+
+        public TopicMetadataCache Topics { get; private set; }
 
         public async ValueTask DisposeAsync()
         {
@@ -116,6 +137,49 @@ namespace A6k.Kafka
             }
 
             public ValueTask DisposeAsync() => Connection.DisposeAsync();
+        }
+    }
+
+    public class TopicMetadataCache
+    {
+        private static readonly TimeSpan DefaultTimeout = TimeSpan.FromSeconds(300);
+
+        private readonly MetadataManager metadataManager;
+        private readonly TimeSpan timeout;
+        private readonly MemoryCache memoryCache = new MemoryCache(Options.Create(new MemoryCacheOptions()));
+
+        public TopicMetadataCache(MetadataManager metadataManager) : this(metadataManager, DefaultTimeout) { }
+
+        public TopicMetadataCache(MetadataManager metadataManager, TimeSpan timeout)
+        {
+            this.metadataManager = metadataManager;
+            this.timeout = timeout;
+        }
+
+
+        public async ValueTask<MetadataResponse.TopicMetadata> GetTopic(string topicName)
+        {
+            // TODO: Lock?
+
+            // find or get the metadata for the topicName
+            return await memoryCache.GetOrCreateAsync(topicName, async entry =>
+            {
+                var broker = metadataManager.GetRandomBroker();
+                var md = await broker.Connection.Metadata(topicName);
+                var topicMetadata = md.Topics.FirstOrDefault(t => t.TopicName == topicName);
+                entry.AbsoluteExpirationRelativeToNow = timeout;
+                return topicMetadata;
+            });
+        }
+
+        public async Task RefreshAllTopics()
+        {
+            var broker = metadataManager.GetRandomBroker();
+            var md = await broker.Connection.Metadata(string.Empty);
+            foreach(var topicMetadata in md.Topics)
+            {
+                memoryCache.Set(topicMetadata.TopicName, topicMetadata, timeout);
+            }
         }
     }
 }

@@ -23,9 +23,7 @@ namespace ConsoleApp1
             //DoAdmin();
 
             _ = Consume(cts.Token);
-
-            Console.WriteLine("Produce -----");
-
+            
             //Produce();
 
             Console.WriteLine("done...");
@@ -34,6 +32,8 @@ namespace ConsoleApp1
 
         private static void Produce()
         {
+            Console.WriteLine("Produce -----");
+            
             var producer = new ProducerBuilder<string, string>(
                 new AdminClientConfig()
                 {

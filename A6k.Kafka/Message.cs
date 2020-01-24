@@ -9,6 +9,9 @@ namespace A6k.Kafka
         private KeyValueListNode headers;
 
         public DateTime Timestamp { get; set; }
+        public string Topic { get; set; }
+        public int PartitionId { get; set; }
+        public long Offset { get; set; }
 
         public TKey Key { get; set; }
 
