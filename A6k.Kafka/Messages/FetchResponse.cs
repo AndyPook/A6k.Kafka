@@ -7,7 +7,7 @@ namespace A6k.Kafka.Messages
         public FetchResponse(int throttleTime, short errorCode, int sessionId, IReadOnlyCollection<Response> responses)
         {
             ThrottleTime = throttleTime;
-            ErrorCode = errorCode;
+            ErrorCode = (ResponseError)errorCode;
             SessionId = sessionId;
             Responses = responses;
         }
@@ -32,7 +32,7 @@ namespace A6k.Kafka.Messages
         //      record_set => RECORDS
 
         public int ThrottleTime { get; }
-        public short ErrorCode { get; }
+        public ResponseError ErrorCode { get; }
         public int SessionId { get; }
         public IReadOnlyCollection<Response> Responses { get; }
 
@@ -54,7 +54,9 @@ namespace A6k.Kafka.Messages
                     short errorCode)
                 {
                     PartitionId = partitionId;
-                    ErrorCode = errorCode;
+                    ErrorCode = (ResponseError)errorCode;
+                    AbortedTransactions = new AbortedTransaction[0];
+                    RecordBatches = new RecordBatch[0];
                 }
 
                 public PartitionResponse(
@@ -76,7 +78,7 @@ namespace A6k.Kafka.Messages
                 }
 
                 public int PartitionId { get; }
-                public short ErrorCode { get; }
+                public ResponseError ErrorCode { get; }
                 public long HighWaterMark { get; }
                 public long LastStableOffset { get; }
                 public long LogStartOffset { get; }

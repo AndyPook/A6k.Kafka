@@ -64,15 +64,18 @@ namespace A6k.Kafka.Messages
                 batches.Add(recordBatch);
             }
 
-            message = new FetchResponse.Response.PartitionResponse(
-                partitionId,
-                highWaterMark,
-                lastStableOffset,
-                logStartOffset,
-                aborted,
-                perferredReadReplica,
-                batches.ToArray()
-            );
+            if (errorCode > 0)
+                message = new FetchResponse.Response.PartitionResponse(partitionId, errorCode);
+            else
+                message = new FetchResponse.Response.PartitionResponse(
+                    partitionId,
+                    highWaterMark,
+                    lastStableOffset,
+                    logStartOffset,
+                    aborted,
+                    perferredReadReplica,
+                    batches.ToArray()
+                );
             return true;
         }
 
