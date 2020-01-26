@@ -4,7 +4,7 @@ namespace A6k.Kafka.Messages
 {
     public class FetchResponse
     {
-        public FetchResponse(int throttleTime, short errorCode, int sessionId, IReadOnlyCollection<Response> responses)
+        public FetchResponse(int throttleTime, short errorCode, int sessionId, Response[] responses)
         {
             ThrottleTime = throttleTime;
             ErrorCode = (ResponseError)errorCode;
@@ -34,18 +34,18 @@ namespace A6k.Kafka.Messages
         public int ThrottleTime { get; }
         public ResponseError ErrorCode { get; }
         public int SessionId { get; }
-        public IReadOnlyCollection<Response> Responses { get; }
+        public IReadOnlyList<Response> Responses { get; }
 
         public class Response
         {
-            public Response(string topicName, IReadOnlyCollection<PartitionResponse> partitionResponses)
+            public Response(string topicName, PartitionResponse[] partitionResponses)
             {
                 TopicName = topicName;
                 PartitionResponses = partitionResponses;
             }
 
             public string TopicName { get; }
-            public IReadOnlyCollection<PartitionResponse> PartitionResponses { get; }
+            public IReadOnlyList<PartitionResponse> PartitionResponses { get; }
 
             public class PartitionResponse
             {
@@ -66,7 +66,7 @@ namespace A6k.Kafka.Messages
                     long logStartOffset,
                     AbortedTransaction[] abortedTransactions,
                     int preferredReadReplica,
-                    IReadOnlyCollection<RecordBatch> recordBatches)
+                    RecordBatch[] recordBatches)
                 {
                     PartitionId = partitionId;
                     HighWaterMark = highWaterMark;
@@ -85,7 +85,7 @@ namespace A6k.Kafka.Messages
                 public AbortedTransaction[] AbortedTransactions { get; }
                 public int PreferredReadReplica { get; }
 
-                public IReadOnlyCollection<RecordBatch> RecordBatches { get; }
+                public IReadOnlyList<RecordBatch> RecordBatches { get; }
 
                 public class AbortedTransaction
                 {

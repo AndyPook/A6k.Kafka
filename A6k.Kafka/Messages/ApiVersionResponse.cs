@@ -8,16 +8,16 @@ namespace A6k.Kafka.Messages
         public ApiVersionResponse(short errorCode)
         {
             ErrorCode = errorCode;
-            ApiVersions = new ApiVersionResponse.ApiVersion[0];
+            ApiVersions = new ApiVersion[0];
         }
 
-        public ApiVersionResponse(IReadOnlyCollection<ApiVersion> apiVersions)
+        public ApiVersionResponse(ApiVersion[] apiVersions)
         {
             ApiVersions = apiVersions;
         }
 
         public short ErrorCode { get; }
-        public IReadOnlyCollection<ApiVersion> ApiVersions { get; }
+        public IReadOnlyList<ApiVersion> ApiVersions { get; }
 
         public class ApiVersion
         {

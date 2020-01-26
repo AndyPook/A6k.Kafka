@@ -10,10 +10,7 @@ namespace A6k.Kafka.Messages
             if (!reader.TryReadArray<OffsetFetchResponse.Topic>(TryParseTopic, out var topics))
                 return false;
 
-            message = new OffsetFetchResponse
-            {
-                Topics = topics
-            };
+            message = new OffsetFetchResponse(topics);
             return true;
         }
 
@@ -25,11 +22,7 @@ namespace A6k.Kafka.Messages
             if (!reader.TryReadArray<OffsetFetchResponse.Topic.Partition>(TryParsePartition, out var partitions))
                 return false;
 
-            message = new OffsetFetchResponse.Topic
-            {
-                Name = topicName,
-                Partitions = partitions
-            };
+            message = new OffsetFetchResponse.Topic(topicName,partitions);
             return true;
         }
 
@@ -46,12 +39,12 @@ namespace A6k.Kafka.Messages
                 return false;
 
             message = new OffsetFetchResponse.Topic.Partition
-            {
-                PartitionId = partitionId,
-                CommittedOffset = committedOffset,
-                Metadata = metadata,
-                ErrorCode = (ResponseError)errorCode
-            };
+            (
+                partitionId,
+                committedOffset,
+                metadata,
+                (ResponseError)errorCode
+            );
             return true;
         }
     }

@@ -12,11 +12,7 @@ namespace A6k.Kafka.Messages
             if (!reader.TryReadArray<OffsetCommitResponse.Topic>(TryParseTopic, out var topics))
                 return false;
 
-            message = new OffsetCommitResponse
-            {
-                ThrottleTime = throttleTime,
-                Topics = topics
-            };
+            message = new OffsetCommitResponse(throttleTime,topics);
             return true;
         }
 
@@ -28,11 +24,7 @@ namespace A6k.Kafka.Messages
             if (!reader.TryReadArray<OffsetCommitResponse.Topic.Partition>(TryParsePartition, out var partitions))
                 return false;
 
-            message = new OffsetCommitResponse.Topic
-            {
-                Name = topicName,
-                Partitions = partitions
-            };
+            message = new OffsetCommitResponse.Topic(topicName,partitions);
             return true;
         }
 
@@ -44,11 +36,7 @@ namespace A6k.Kafka.Messages
             if (!reader.TryReadShort(out var errorCode))
                 return false;
 
-            message = new OffsetCommitResponse.Topic.Partition
-            {
-                PartitionIndex = partitonId,
-                ErrorCode = (ResponseError)errorCode
-            };
+            message = new OffsetCommitResponse.Topic.Partition(partitonId,errorCode);
             return true;
         }
     }

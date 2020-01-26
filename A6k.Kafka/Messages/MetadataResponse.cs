@@ -12,10 +12,10 @@ namespace A6k.Kafka.Messages
             Topics = topics;
         }
 
-        public IReadOnlyCollection<Broker> Brokers { get; }
+        public IReadOnlyList<Broker> Brokers { get; }
         public string ClusterId { get; }
         public int ControllerId { get; }
-        public IReadOnlyCollection<TopicMetadata> Topics { get; }
+        public IReadOnlyList<TopicMetadata> Topics { get; }
 
         public class Broker
         {
@@ -49,7 +49,7 @@ namespace A6k.Kafka.Messages
             public short ErrorCode { get; }
             public string TopicName { get; }
             public bool IsInternal { get; }
-            public IReadOnlyCollection<PartitionMetadata> Partitions { get; }
+            public IReadOnlyList<PartitionMetadata> Partitions { get; }
         }
 
         public class PartitionMetadata
@@ -69,8 +69,8 @@ namespace A6k.Kafka.Messages
             public short ErrorCode { get; }
             public int PartitionId { get; }
             public int Leader { get; }
-            public IReadOnlyCollection<int> Replicas { get; }
-            public IReadOnlyCollection<int> Isr { get; }
+            public IReadOnlyList<int> Replicas { get; }
+            public IReadOnlyList<int> Isr { get; }
         }
     }
 }

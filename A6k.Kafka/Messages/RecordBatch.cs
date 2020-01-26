@@ -16,7 +16,7 @@ namespace A6k.Kafka.Messages
         public long ProducerId { get; set; }
         public short ProducerEpoc { get; set; }
         public int BaseSequence { get; set; }
-        public IReadOnlyCollection<Record> Records { get; set; }
+        public IReadOnlyList<Record> Records { get; set; }
 
         public class Record
         {
@@ -26,7 +26,7 @@ namespace A6k.Kafka.Messages
             public long Offset { get; set; }
             public byte[] Key { get; set; }
             public byte[] Value { get; set; }
-            public IReadOnlyCollection<Header> Headers { get; set; }
+            public IReadOnlyList<Header> Headers { get; set; }
 
             public class Header
             {

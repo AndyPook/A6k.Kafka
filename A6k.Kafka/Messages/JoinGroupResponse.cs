@@ -22,7 +22,7 @@ namespace A6k.Kafka.Messages
         public string ProtocolName { get; }
         public string Leader { get; }
         public string MemberId { get; }
-        public IReadOnlyCollection<Member> Members { get; }
+        public IReadOnlyList<Member> Members { get; }
 
         public class Member
         {

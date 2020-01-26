@@ -22,7 +22,7 @@ namespace A6k.Kafka.Messages
             }
 
             public string Topic { get; }
-            public IReadOnlyCollection<PartitionResponse> Partitions { get; }
+            public IReadOnlyList<PartitionResponse> Partitions { get; }
 
             public class PartitionResponse
             {
