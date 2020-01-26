@@ -137,15 +137,22 @@ namespace A6k.Kafka
 
         public static void WriteArray<T>(this IBufferWriter<byte> output, T[] array, Action<T, IBufferWriter<byte>> writer)
         {
-            if(array==null)
+            if (array == null)
             {
                 output.WriteInt(0);
                 return;
             }
 
             output.WriteInt(array.Length);
-            for(int i = 0; i < array.Length; i++)
+            for (int i = 0; i < array.Length; i++)
                 writer(array[i], output);
+        }
+
+        public static void WriteArray(this IBufferWriter<byte> output, int[] array)
+        {
+            output.WriteArray(array, WriteInt);
+
+            void WriteInt(int n, IBufferWriter<byte> output) => output.WriteInt(n);
         }
 
         public enum PrefixType
