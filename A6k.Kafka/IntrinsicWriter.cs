@@ -2,6 +2,7 @@
 using System.Buffers;
 using System.Collections.Generic;
 using System.Text;
+using System.Threading.Tasks;
 using Bedrock.Framework.Protocols;
 
 namespace A6k.Kafka
@@ -73,45 +74,76 @@ namespace A6k.Kafka
             return false;
         }
 
-        public void WriteMessage(object message, IBufferWriter<byte> output) { }
+        public ValueTask WriteMessage(object message, IBufferWriter<byte> output)
+        {
+            return default;
+        }
 
-        public void WriteMessage(string message, IBufferWriter<byte> output)
+        public ValueTask WriteMessage(string message, IBufferWriter<byte> output)
         {
             // there are "better" ways of doing this
             // but this  is simple, for now
             var bytes = Encoding.UTF8.GetBytes(message);
             output.Write(bytes);
+            return default;
         }
 
-        public void WriteMessage(byte message, IBufferWriter<byte> output)
+        public ValueTask WriteMessage(byte message, IBufferWriter<byte> output)
         {
             var buffer = output.GetSpan(1);
             buffer[0] = message;
             output.Advance(1);
+            return default;
         }
-        public void WriteMessage(byte[] message, IBufferWriter<byte> output)
+        public ValueTask WriteMessage(byte[] message, IBufferWriter<byte> output)
         {
             var buffer = output.GetSpan(message.Length);
             message.CopyTo(buffer);
             output.Advance(message.Length);
+            return default;
         }
-        public void WriteMessage(bool message, IBufferWriter<byte> output)
+        public ValueTask WriteMessage(bool message, IBufferWriter<byte> output)
         {
             var buffer = output.GetSpan(1);
             buffer[0] = (byte)(message ? 1 : 0);
             output.Advance(1);
+            return default;
         }
 
-        public void WriteMessage(short message, IBufferWriter<byte> output) => output.WriteShort(message);
-        public void WriteMessage(ushort message, IBufferWriter<byte> output) => output.WriteUShort(message);
+        public ValueTask WriteMessage(short message, IBufferWriter<byte> output)
+        {
+            output.WriteShort(message);
+            return default;
+        }
+        public ValueTask WriteMessage(ushort message, IBufferWriter<byte> output)
+        {
+            output.WriteUShort(message);
+            return default;
+        }
 
-        public void WriteMessage(int message, IBufferWriter<byte> output) => output.WriteInt(message);
-        public void WriteMessage(uint message, IBufferWriter<byte> output) => output.WriteUInt(message);
+        public ValueTask WriteMessage(int message, IBufferWriter<byte> output)
+        {
+            output.WriteInt(message);
+            return default;
+        }
+        public ValueTask WriteMessage(uint message, IBufferWriter<byte> output)
+        {
+            output.WriteUInt(message);
+            return default;
+        }
 
-        public void WriteMessage(long message, IBufferWriter<byte> output) => output.WriteLong(message);
-        public void WriteMessage(ulong message, IBufferWriter<byte> output) => output.WriteULong(message);
+        public ValueTask WriteMessage(long message, IBufferWriter<byte> output)
+        {
+            output.WriteLong(message);
+            return default;
+        }
+        public ValueTask WriteMessage(ulong message, IBufferWriter<byte> output)
+        {
+            output.WriteULong(message);
+            return default;
+        }
 
-        public void WriteMessage(float message, IBufferWriter<byte> output)
+        public ValueTask WriteMessage(float message, IBufferWriter<byte> output)
         {
             // got to be a "nicer" way of doing this??
 
@@ -132,12 +164,13 @@ namespace A6k.Kafka
             {
                 output.Write(BitConverter.GetBytes(message));
             }
+            return default;
         }
 
-        public void WriteMessage(double message, IBufferWriter<byte> output)
+        public ValueTask WriteMessage(double message, IBufferWriter<byte> output)
         {
             // got to be a "nicer" way of doing this??
-          
+
             if (BitConverter.IsLittleEndian)
             {
                 unsafe
@@ -159,8 +192,9 @@ namespace A6k.Kafka
             {
                 output.Write(BitConverter.GetBytes(message));
             }
+            return default;
         }
 
-        public void WriteMessage(decimal message, IBufferWriter<byte> output) => throw new NotImplementedException();
+        public ValueTask WriteMessage(decimal message, IBufferWriter<byte> output) => throw new NotImplementedException();
     }
 }

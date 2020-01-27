@@ -1,9 +1,10 @@
 ﻿using System;
+using System.Threading.Tasks;
 
 namespace A6k.Kafka
 {
     public interface IDeserializer<T>
     {
-        T Deserialize(in ReadOnlySpan<byte> input);
+        ValueTask<T> Deserialize(in ReadOnlySpan<byte> input);
     }
 }

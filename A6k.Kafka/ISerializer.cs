@@ -1,9 +1,10 @@
 ﻿using System.Buffers;
+using System.Threading.Tasks;
 
 namespace A6k.Kafka
 {
     public interface ISerializer<T>
     {
-        void WriteMessage(T message, IBufferWriter<byte> output);
+        ValueTask WriteMessage(T message, IBufferWriter<byte> output);
     }
 }

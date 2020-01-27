@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
+using System.Threading.Tasks;
 using Bedrock.Framework.Protocols;
 
 namespace A6k.Kafka
@@ -49,7 +50,7 @@ namespace A6k.Kafka
 
         public static bool TryGetDeserializer<T>(out IDeserializer<T> deserializer)
         {
-            if(deserializers.TryGetValue(typeof(T), out var d))
+            if (deserializers.TryGetValue(typeof(T), out var d))
             {
                 deserializer = (IDeserializer<T>)d;
                 return true;
@@ -61,24 +62,24 @@ namespace A6k.Kafka
 
         public class StringDeserializer : IDeserializer<string>
         {
-            public string Deserialize(in ReadOnlySpan<byte> input) => Encoding.UTF8.GetString(input);
+            public ValueTask<string> Deserialize(in ReadOnlySpan<byte> input) => new ValueTask<string>(Encoding.UTF8.GetString(input));
         }
 
         public class ByteDeserializer : IDeserializer<byte>
         {
-            public byte Deserialize(in ReadOnlySpan<byte> input)
+            public ValueTask<byte> Deserialize(in ReadOnlySpan<byte> input)
             {
                 if (input.Length != 1)
                     throw new ArgumentException($"Deserializer<byte> encountered data of length {input.Length}. Expecting data length to be 1.");
 
-                return input[0];
+                return new ValueTask<byte>(input[0]);
             }
         }
         public class BytesDeserializer : IDeserializer<byte[]>
         {
-            public byte[] Deserialize(in ReadOnlySpan<byte> input)
+            public ValueTask<byte[]> Deserialize(in ReadOnlySpan<byte> input)
             {
-                return input.ToArray();
+                return new ValueTask<byte[]>(input.ToArray());
             }
         }
         //public ref struct SpanDeserializer : IDeserializer<ReadOnlySpan<byte>>
@@ -90,104 +91,107 @@ namespace A6k.Kafka
         //}
         public class BoolDeserializer : IDeserializer<bool>
         {
-            public bool Deserialize(in ReadOnlySpan<byte> input)
+            private readonly static ValueTask<bool> True = new ValueTask<bool>(true);
+            private readonly static ValueTask<bool> False = new ValueTask<bool>(false);
+
+            public ValueTask<bool> Deserialize(in ReadOnlySpan<byte> input)
             {
                 if (input.Length != 1)
                     throw new ArgumentException($"Deserializer<bool> encountered data of length {input.Length}. Expecting data length to be 1.");
 
-                return input[0] > 0;
+                return input[0] > 0 ? True : False;
             }
         }
 
         public class ShortDeserializer : IDeserializer<short>
         {
-            public short Deserialize(in ReadOnlySpan<byte> input)
+            public ValueTask<short> Deserialize(in ReadOnlySpan<byte> input)
             {
                 if (input.Length != 2)
                     throw new ArgumentException($"Deserializer<short> encountered data of length {input.Length}. Expecting data length to be 2.");
 
-                return Unsafe.ReadUnaligned<short>(ref MemoryMarshal.GetReference(input));
+                return new ValueTask<short>(Unsafe.ReadUnaligned<short>(ref MemoryMarshal.GetReference(input)));
             }
         }
         public class UShortDeserializer : IDeserializer<ushort>
         {
-            public ushort Deserialize(in ReadOnlySpan<byte> input)
+            public ValueTask<ushort> Deserialize(in ReadOnlySpan<byte> input)
             {
                 if (input.Length != 2)
                     throw new ArgumentException($"Deserializer<short> encountered data of length {input.Length}. Expecting data length to be 2.");
 
-                return Unsafe.ReadUnaligned<ushort>(ref MemoryMarshal.GetReference(input));
+                return new ValueTask<ushort>(Unsafe.ReadUnaligned<ushort>(ref MemoryMarshal.GetReference(input)));
             }
         }
         public class IntDeserializer : IDeserializer<int>
         {
-            public int Deserialize(in ReadOnlySpan<byte> input)
+            public ValueTask<int> Deserialize(in ReadOnlySpan<byte> input)
             {
                 if (input.Length != 4)
                     throw new ArgumentException($"Deserializer<int> encountered data of length {input.Length}. Expecting data length to be 4.");
 
-                return Unsafe.ReadUnaligned<int>(ref MemoryMarshal.GetReference(input));
+                return new ValueTask<int>(Unsafe.ReadUnaligned<int>(ref MemoryMarshal.GetReference(input)));
             }
         }
         public class UIntDeserializer : IDeserializer<uint>
         {
-            public uint Deserialize(in ReadOnlySpan<byte> input)
+            public ValueTask<uint> Deserialize(in ReadOnlySpan<byte> input)
             {
                 if (input.Length != 4)
                     throw new ArgumentException($"Deserializer<int> encountered data of length {input.Length}. Expecting data length to be 4.");
 
-                return Unsafe.ReadUnaligned<uint>(ref MemoryMarshal.GetReference(input));
+                return new ValueTask<uint>(Unsafe.ReadUnaligned<uint>(ref MemoryMarshal.GetReference(input)));
             }
         }
         public class LongDeserializer : IDeserializer<long>
         {
-            public long Deserialize(in ReadOnlySpan<byte> input)
+            public ValueTask<long> Deserialize(in ReadOnlySpan<byte> input)
             {
                 if (input.Length != 8)
                     throw new ArgumentException($"Deserializer<long> encountered data of length {input.Length}. Expecting data length to be 8.");
 
-                return Unsafe.ReadUnaligned<long>(ref MemoryMarshal.GetReference(input));
+                return new ValueTask<long>(Unsafe.ReadUnaligned<long>(ref MemoryMarshal.GetReference(input)));
             }
         }
         public class ULongDeserializer : IDeserializer<ulong>
         {
-            public ulong Deserialize(in ReadOnlySpan<byte> input)
+            public ValueTask<ulong> Deserialize(in ReadOnlySpan<byte> input)
             {
                 if (input.Length != 8)
                     throw new ArgumentException($"Deserializer<long> encountered data of length {input.Length}. Expecting data length to be 8.");
 
-                return Unsafe.ReadUnaligned<ulong>(ref MemoryMarshal.GetReference(input));
+                return new ValueTask<ulong>(Unsafe.ReadUnaligned<ulong>(ref MemoryMarshal.GetReference(input)));
             }
         }
 
         public class FloatDeserializer : IDeserializer<float>
         {
-            public float Deserialize(in ReadOnlySpan<byte> input)
+            public ValueTask<float> Deserialize(in ReadOnlySpan<byte> input)
             {
                 if (input.Length != 4)
                     throw new ArgumentException($"Deserializer<float> encountered data of length {input.Length}. Expecting data length to be 4.");
 
-                return Unsafe.ReadUnaligned<float>(ref MemoryMarshal.GetReference(input));
+                return new ValueTask<float>(Unsafe.ReadUnaligned<float>(ref MemoryMarshal.GetReference(input)));
             }
         }
         public class DoubleDeserializer : IDeserializer<double>
         {
-            public double Deserialize(in ReadOnlySpan<byte> input)
+            public ValueTask<double> Deserialize(in ReadOnlySpan<byte> input)
             {
                 if (input.Length != 8)
                     throw new ArgumentException($"Deserializer<double> encountered data of length {input.Length}. Expecting data length to be 8.");
 
-                return Unsafe.ReadUnaligned<double>(ref MemoryMarshal.GetReference(input));
+                return new ValueTask<double>(Unsafe.ReadUnaligned<double>(ref MemoryMarshal.GetReference(input)));
             }
         }
         public class DecimalDeserializer : IDeserializer<decimal>
         {
-            public decimal Deserialize(in ReadOnlySpan<byte> input)
+            public ValueTask<decimal> Deserialize(in ReadOnlySpan<byte> input)
             {
                 if (input.Length != 16)
                     throw new ArgumentException($"Deserializer<decimal> encountered data of length {input.Length}. Expecting data length to be 16.");
 
-                return Unsafe.ReadUnaligned<decimal>(ref MemoryMarshal.GetReference(input));
+                return new ValueTask<decimal>(Unsafe.ReadUnaligned<decimal>(ref MemoryMarshal.GetReference(input)));
             }
         }
     }
