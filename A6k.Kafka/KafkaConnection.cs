@@ -28,7 +28,7 @@ namespace A6k.Kafka
             StartInbound();
         }
 
-        private async Task<TResponse> SendRequest<TRequest, TResponse>(short apikey, short version, TRequest request, IMessageWriter<TRequest> messageWriter, IMessageReader<TResponse> messageReader)
+        private ValueTask<TResponse> SendRequest<TRequest, TResponse>(short apikey, short version, TRequest request, IMessageWriter<TRequest> messageWriter, IMessageReader<TResponse> messageReader)
         {
             var op = new Op<TRequest, TResponse>
             {
@@ -40,7 +40,7 @@ namespace A6k.Kafka
                 MessageReader = messageReader
             };
             outboundWriter.TryWrite(op);
-            return await op.GetResponse();
+            return op.GetResponse();
         }
 
         private void StartOutbound(CancellationToken cancellationToken = default)

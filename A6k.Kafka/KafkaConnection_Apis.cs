@@ -7,35 +7,34 @@ namespace A6k.Kafka
 {
     public partial class KafkaConnection
     {
-
-        public Task<ProduceResponse> Produce<TKey, TValue>(string topic, Message<TKey, TValue> message, ISerializer<TKey> keyWriter, ISerializer<TValue> valueWriter)
+        public ValueTask<ProduceResponse> Produce<TKey, TValue>(string topic, Message<TKey, TValue> message, ISerializer<TKey> keyWriter, ISerializer<TValue> valueWriter)
             => SendRequest(ApiKey.Produce, 7, message, new ProduceRequestWriter<TKey, TValue>(topic, keyWriter, valueWriter), new ProduceResponseReader());
 
-        public Task<FetchResponse> Fetch(FetchRequest request)
+        public ValueTask<FetchResponse> Fetch(FetchRequest request)
             => SendRequest(ApiKey.Fetch, 11, request, new FetchRequestWriter(), new FetchResponseReader());
 
-        public Task<MetadataResponse> Metadata(ICollection<string> topics = null)
+        public ValueTask<MetadataResponse> Metadata(ICollection<string> topics = null)
             => SendRequest(ApiKey.Metadata, 2, topics, new MetadataRequestWriter(), new MetadataResponseReader());
 
-        public Task<MetadataResponse> Metadata(params string[] topics)
+        public ValueTask<MetadataResponse> Metadata(params string[] topics)
             => SendRequest(ApiKey.Metadata, 2, topics, new MetadataRequestWriter(), new MetadataResponseReader());
 
-        public Task<OffsetCommitResponse> OffsetCommit(OffsetCommitRequest request)
+        public ValueTask<OffsetCommitResponse> OffsetCommit(OffsetCommitRequest request)
             => SendRequest(ApiKey.OffsetCommit, 7, request, new OffsetCommitRequestWriter(), new OffsetCommitResponseReader());
 
-        public Task<OffsetFetchResponse> OffsetFetch(OffsetFetchRequest request)
+        public ValueTask<OffsetFetchResponse> OffsetFetch(OffsetFetchRequest request)
             => SendRequest(ApiKey.OffsetFetch, 1, request, new OffsetFetchRequestWriter(), new OffsetFetchResponseReader());
 
-        public Task<FindCoordinatorResponse> FindCoordinator(string key, CoordinatorType keyType = CoordinatorType.RD_KAFKA_COORD_GROUP)
+        public ValueTask<FindCoordinatorResponse> FindCoordinator(string key, CoordinatorType keyType = CoordinatorType.RD_KAFKA_COORD_GROUP)
             => SendRequest(ApiKey.FindCoordinator, 2, (key, keyType), new FindCoordinatorRequestWriter(), new FindCoordinatorResponseReader());
 
-        public Task<JoinGroupResponse> JoinGroup(JoinGroupRequest request)
+        public ValueTask<JoinGroupResponse> JoinGroup(JoinGroupRequest request)
             => SendRequest(ApiKey.JoinGroup, 5, request, new JoinGroupRequestWriter(), new JoinGroupResponseReader());
 
-        public Task<HeartbeatResponse> Heartbeat(HeartbeatRequest request)
+        public ValueTask<HeartbeatResponse> Heartbeat(HeartbeatRequest request)
             => SendRequest(ApiKey.Heartbeat, 3, request, new HeartbeatRequestWriter(), new HeartbeatResponseReader());
 
-        public Task<ApiVersionResponse> ApiVersion()
+        public ValueTask<ApiVersionResponse> ApiVersion()
             => SendRequest<object, ApiVersionResponse>(ApiKey.ApiVersion, 0, null, null, new ApiVersionResponseReader());
     }
 }
