@@ -2,11 +2,21 @@
 {
     public class FindCoordinatorResponse
     {
-        public int ThrottleTime { get; set; }
-        public short ErrorCode { get; set; }
-        public string ErrorMessage { get; set; }
-        public int NodeId { get; set; }
-        public string Host { get; set; }
-        public int Port { get; set; }
+        public FindCoordinatorResponse(int throttleTime, short errorCode, string errorMessage, int nodeId, string host, int port)
+        {
+            ThrottleTime = throttleTime;
+            ErrorCode = (ResponseError)errorCode;
+            ErrorMessage = errorMessage;
+            NodeId = nodeId;
+            Host = host;
+            Port = port;
+        }
+
+        public int ThrottleTime { get; }
+        public ResponseError ErrorCode { get; }
+        public string ErrorMessage { get; }
+        public int NodeId { get; }
+        public string Host { get; }
+        public int Port { get; }
     }
 }

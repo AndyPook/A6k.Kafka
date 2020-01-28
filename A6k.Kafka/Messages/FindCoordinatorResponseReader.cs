@@ -22,14 +22,14 @@ namespace A6k.Kafka.Messages
                 return false;
 
             message = new FindCoordinatorResponse
-            {
-                ThrottleTime = throttleTime,
-                ErrorCode = errorCode,
-                ErrorMessage = errorMessage,
-                NodeId = nodeId,
-                Host = host,
-                Port = port
-            };
+            (
+                throttleTime,
+                errorCode,
+                errorMessage,
+                nodeId,
+                host,
+                port
+            );
             return true;
         }
     }
