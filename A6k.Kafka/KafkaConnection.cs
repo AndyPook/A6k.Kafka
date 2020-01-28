@@ -55,7 +55,7 @@ namespace A6k.Kafka
             _ = ProcessOutbound(reader, cancellationToken);
         }
 
-        private async Task ProcessOutbound(ChannelReader<Op> outboundReader, CancellationToken cancellationToken)
+        private async ValueTask ProcessOutbound(ChannelReader<Op> outboundReader, CancellationToken cancellationToken)
         {
             await Task.Yield();
 
@@ -98,19 +98,20 @@ namespace A6k.Kafka
             // adding a bound here just to protect myself
             // I wouldn't expect this to grow too large
             // should add some metrics for monitoring
-            var channel = Channel.CreateBounded<Op>(new BoundedChannelOptions(100) { SingleReader = true });
+            var channel = Channel.CreateBounded<Op>(new BoundedChannelOptions(100) { SingleWriter = true, SingleReader = true });
             inflightWriter = channel.Writer;
             var reader = channel.Reader;
 
             _ = ProcessInbound(reader, cancellationToken);
         }
+
         private async ValueTask ProcessInbound(ChannelReader<Op> inflightReader, CancellationToken cancellationToken)
         {
             await Task.Yield();
             var headerReader = new KafkaResponseHeaderReader();
             var reader = connection.CreateReader();
 
-            while (true)
+            while (!cancellationToken.IsCancellationRequested)
             {
                 try
                 {

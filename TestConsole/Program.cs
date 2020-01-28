@@ -45,7 +45,7 @@ namespace TestConsole
         {
             var mdMgr = GetMetadataManager();
 
-            await mdMgr.Init("fred", "localhost:29092");
+            await mdMgr.Connect("fred", "localhost:29092");
 
             foreach (var b in mdMgr.Brokers)
             {
@@ -70,7 +70,7 @@ namespace TestConsole
                     continue;
                 }
 
-                Console.WriteLine($"({msg.Key}) {msg.Value}");
+                Console.WriteLine($"topic:{msg.Topic}:{msg.PartitionId}:{msg.Offset} - ({msg.Key}) {msg.Value}");
             }
         }
 

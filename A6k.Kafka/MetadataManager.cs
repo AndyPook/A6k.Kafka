@@ -1,14 +1,13 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.Net;
+using System.Linq;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 using A6k.Kafka.Messages;
-using System.Linq;
-using System.Collections.Concurrent;
-using Microsoft.Extensions.Caching.Memory;
-using Microsoft.Extensions.Options;
 
 namespace A6k.Kafka
 {
@@ -18,6 +17,7 @@ namespace A6k.Kafka
         private readonly ILogger<MetadataManager> logger;
 
         private ConcurrentDictionary<int, Broker> brokers = new ConcurrentDictionary<int, Broker>();
+        private TopicMetadataCache topics;
 
         public MetadataManager(KafkaConnectionFactory kafkaConnectionFactory, ILogger<MetadataManager> logger)
         {
@@ -28,16 +28,9 @@ namespace A6k.Kafka
         public string ClusterId { get; private set; }
         public int ControllerId { get; private set; }
 
-        public Broker GetBroker(int nodeId)
-        {
-            if (brokers.TryGetValue(nodeId, out var broker))
-                return broker;
-            throw new InvalidOperationException($"Broker ({nodeId}) not found");
-        }
-
         public IEnumerable<Broker> Brokers => brokers.Values;
 
-        public async Task Init(string clientId, string bootstrapServers)
+        public async Task Connect(string clientId, string bootstrapServers)
         {
             var servers = bootstrapServers.Split(';');
 
@@ -67,16 +60,28 @@ namespace A6k.Kafka
                 throw new InvalidOperationException("no reachable brokers via: " + bootstrapServers);
 
             foreach (var broker in brokers.Values)
-                await broker.Init(clientId);
+                await broker.Connect(clientId);
 
-            Topics = new TopicMetadataCache(this);
+            topics = new TopicMetadataCache(this);
         }
 
-        public async Task GetMetadata()
+        public async Task Disconnect()
         {
-            var broker = GetRandomBroker();
-            var metadata = await broker.Connection.Metadata("");
+            while (brokers.Count > 0)
+            {
+                foreach (var b in brokers.Values)
+                {
+                    await b.DisposeAsync();
+                    brokers.TryRemove(b.NodeId, out var _);
+                }
+            }
+        }
 
+        public Broker GetBroker(int nodeId)
+        {
+            if (brokers.TryGetValue(nodeId, out var broker))
+                return broker;
+            throw new InvalidOperationException($"Broker ({nodeId}) not known");
         }
 
         public Broker GetRandomBroker()
@@ -85,7 +90,7 @@ namespace A6k.Kafka
             return brokers.Values.First();
         }
 
-        public TopicMetadataCache Topics { get; private set; }
+        public ValueTask<MetadataResponse.TopicMetadata> GetTopic(string topicName) => topics.GetTopic(topicName);
 
         public async ValueTask DisposeAsync()
         {
@@ -113,9 +118,9 @@ namespace A6k.Kafka
             public string Rack { get; }
 
             public KafkaConnection Connection { get; private set; }
-            public IReadOnlyCollection<ApiVersion> ApiVersions { get; set; }
+            public IReadOnlyList<ApiVersion> ApiVersions { get; private set; }
 
-            public async Task Init(string clientId)
+            public async Task Connect(string clientId)
             {
                 Connection = await kafkaConnectionFactory.CreateConnection(Host, Port, clientId);
                 var version = await Connection.ApiVersion();
@@ -138,47 +143,45 @@ namespace A6k.Kafka
 
             public ValueTask DisposeAsync() => Connection.DisposeAsync();
         }
-    }
 
-    public class TopicMetadataCache
-    {
-        private static readonly TimeSpan DefaultTimeout = TimeSpan.FromSeconds(300);
-
-        private readonly MetadataManager metadataManager;
-        private readonly TimeSpan timeout;
-        private readonly MemoryCache memoryCache = new MemoryCache(Options.Create(new MemoryCacheOptions()));
-
-        public TopicMetadataCache(MetadataManager metadataManager) : this(metadataManager, DefaultTimeout) { }
-
-        public TopicMetadataCache(MetadataManager metadataManager, TimeSpan timeout)
+        private class TopicMetadataCache
         {
-            this.metadataManager = metadataManager;
-            this.timeout = timeout;
-        }
+            private static readonly TimeSpan DefaultTimeout = TimeSpan.FromSeconds(300);
 
+            private readonly MetadataManager metadataManager;
+            private readonly TimeSpan timeout;
+            private readonly MemoryCache memoryCache = new MemoryCache(Options.Create(new MemoryCacheOptions()));
 
-        public async ValueTask<MetadataResponse.TopicMetadata> GetTopic(string topicName)
-        {
-            // TODO: Lock?
+            public TopicMetadataCache(MetadataManager metadataManager) : this(metadataManager, DefaultTimeout) { }
 
-            // find or get the metadata for the topicName
-            return await memoryCache.GetOrCreateAsync(topicName, async entry =>
+            public TopicMetadataCache(MetadataManager metadataManager, TimeSpan timeout)
+            {
+                this.metadataManager = metadataManager;
+                this.timeout = timeout;
+            }
+
+            public async ValueTask<MetadataResponse.TopicMetadata> GetTopic(string topicName)
+            {
+                // TODO: Lock?
+
+                // find or get the metadata for the topicName
+                return await memoryCache.GetOrCreateAsync(topicName, async entry =>
+                {
+                    var broker = metadataManager.GetRandomBroker();
+                    var md = await broker.Connection.Metadata(topicName);
+                    entry.AbsoluteExpirationRelativeToNow = timeout;
+                    return md.Topics[0];
+                });
+            }
+
+            public async Task RefreshAllTopics()
             {
                 var broker = metadataManager.GetRandomBroker();
-                var md = await broker.Connection.Metadata(topicName);
-                var topicMetadata = md.Topics.FirstOrDefault(t => t.TopicName == topicName);
-                entry.AbsoluteExpirationRelativeToNow = timeout;
-                return topicMetadata;
-            });
-        }
-
-        public async Task RefreshAllTopics()
-        {
-            var broker = metadataManager.GetRandomBroker();
-            var md = await broker.Connection.Metadata(string.Empty);
-            foreach(var topicMetadata in md.Topics)
-            {
-                memoryCache.Set(topicMetadata.TopicName, topicMetadata, timeout);
+                var md = await broker.Connection.Metadata(string.Empty);
+                foreach (var topicMetadata in md.Topics)
+                {
+                    memoryCache.Set(topicMetadata.TopicName, topicMetadata, timeout);
+                }
             }
         }
     }
