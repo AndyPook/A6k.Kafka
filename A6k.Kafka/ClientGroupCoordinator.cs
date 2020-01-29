@@ -6,6 +6,14 @@ namespace A6k.Kafka
 {
     public class ClientGroupCoordinator
     {
+        private enum State
+        {
+            None,
+            Find,
+            Found,
+            Join,
+        }
+
         private readonly MetadataManager metadataManager;
         private readonly string groupId;
 
@@ -13,6 +21,7 @@ namespace A6k.Kafka
         private int coordinatorBrokerId = 0;
         private int generationId = 0;
         private string memberId;
+        private State state;
 
         public ClientGroupCoordinator(MetadataManager metadataManager, string groupId)
         {
@@ -29,11 +38,25 @@ namespace A6k.Kafka
                 case ResponseError.COORDINATOR_NOT_AVAILABLE:
                     throw null;
             }
-            //response.
+
+            var b = metadataManager.GetBroker(response.NodeId);
+            if (!b.Equals(response.Host, response.Port))
+                throw new InvalidOperationException($"Coordinator detail do not match metadata broker: {response.NodeId}/{response.Host}:{response.Port} != {b}");
+
+            coordinatorBrokerId = response.NodeId;
+            state = State.Found;
         }
+
         private async Task JoinGroup()
         {
-            //var response = await 
+            var b = metadataManager.GetBroker(coordinatorBrokerId);
+            var response = await b.Connection.JoinGroup(new JoinGroupRequest
+            {
+                GroupId = groupId,
+                ProtocolType = "client",
+                SessionTimeout = 10_000,
+                RebalanceTimeout = 300_000
+            });
         }
 
         private async Task SendHeartbeats()
