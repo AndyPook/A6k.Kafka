@@ -8,6 +8,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 using A6k.Kafka.Messages;
+using System.Diagnostics.CodeAnalysis;
 
 namespace A6k.Kafka
 {
@@ -98,7 +99,7 @@ namespace A6k.Kafka
                 await b.DisposeAsync();
         }
 
-        public class Broker : IAsyncDisposable
+        public class Broker : IAsyncDisposable, IEquatable<Broker>
         {
             private readonly KafkaConnectionFactory kafkaConnectionFactory;
 
@@ -140,6 +141,42 @@ namespace A6k.Kafka
                 public short MinVersion { get; }
                 public short MaxVersion { get; }
             }
+
+            public bool Equals(string host, int port, string rack = null)
+            {
+                if (rack == null)
+                    return string.Equals(Host, host) && Port == port;
+
+                return string.Equals(Host, host) && Port == port && string.Equals(Rack, rack);
+            }
+
+            public override bool Equals(object obj) => obj is Broker b && Equals(b);
+
+            public bool Equals([AllowNull] Broker other)
+            {
+                if (ReferenceEquals(null, other))
+                    return false;
+                if (ReferenceEquals(this, other))
+                    return true;
+
+                return
+                    NodeId == other.NodeId &&
+                    string.Equals(Host, other.Host) &&
+                    Port == other.Port &&
+                    string.Equals(Rack, other.Rack);
+            }
+
+            /// <summary>	
+            /// Gets the hashcode of the WebSocketHeader value.	
+            /// </summary>	
+            /// <returns>The value hashcode.</returns>
+            public override int GetHashCode() => HashCode.Combine(NodeId, Host, Port, Rack);
+
+            /// <summary>
+            /// Creates a string representation of the WebSocketHeader.
+            /// </summary>
+            /// <returns>A string representation of the WebSocketHeader.</returns>
+            public override string ToString() => $"node: {NodeId}: {Host}:{Port} ({Rack})";
 
             public ValueTask DisposeAsync() => Connection.DisposeAsync();
         }
