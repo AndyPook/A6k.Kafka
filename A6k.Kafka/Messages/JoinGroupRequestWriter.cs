@@ -11,7 +11,7 @@ namespace A6k.Kafka.Messages
             output.WriteInt(message.SessionTimeout);
             output.WriteInt(message.RebalanceTimeout);
             output.WriteString(message.MemberId);
-            output.WriteNullableString(message.GroupInstanceId);
+            //output.WriteNullableString(message.GroupInstanceId);
             output.WriteString(message.ProtocolType);
             output.WriteArray(message.Protocols, WriteProtocol);
         }

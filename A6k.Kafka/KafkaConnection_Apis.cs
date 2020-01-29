@@ -29,7 +29,7 @@ namespace A6k.Kafka
             => SendRequest(ApiKey.FindCoordinator, 2, (key, keyType), new FindCoordinatorRequestWriter(), new FindCoordinatorResponseReader());
 
         public ValueTask<JoinGroupResponse> JoinGroup(JoinGroupRequest request)
-            => SendRequest(ApiKey.JoinGroup, 5, request, new JoinGroupRequestWriter(), new JoinGroupResponseReader());
+            => SendRequest(ApiKey.JoinGroup, 3, request, new JoinGroupRequestWriter(), new JoinGroupResponseReader());
 
         public ValueTask<HeartbeatResponse> Heartbeat(HeartbeatRequest request)
             => SendRequest(ApiKey.Heartbeat, 3, request, new HeartbeatRequestWriter(), new HeartbeatResponseReader());

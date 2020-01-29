@@ -41,12 +41,13 @@ namespace A6k.Kafka.Messages
             member = default;
             if (!reader.TryReadString(out var memberId))
                 return false;
-            if (!reader.TryReadString(out var groupInstanceId))
-                return false;
+            //if (!reader.TryReadString(out var groupInstanceId))
+            //    return false;
             if (!reader.TryReadBytes(out var metadata))
                 return false;
 
-            member = new JoinGroupResponse.Member(memberId, groupInstanceId, metadata);
+            //member = new JoinGroupResponse.Member(memberId, groupInstanceId, metadata);
+            member = new JoinGroupResponse.Member(memberId, null, metadata);
             return true;
         }
     }
