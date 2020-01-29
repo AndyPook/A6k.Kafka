@@ -35,7 +35,9 @@ namespace TestConsole
 
             //await BrokerMgr();
 
-            await Consumer();
+            //await Consumer();
+
+            await ConsumerGroup();
 
             Console.WriteLine("done...");
             Console.ReadLine();
@@ -53,6 +55,20 @@ namespace TestConsole
                 Console.WriteLine("  " + string.Join(",", b.ApiVersions.Select(x => $"{x.ApiKey}({x.MinVersion}-{x.MaxVersion})")));
             }
         }
+
+        private static async Task ConsumerGroup()
+        {
+            var mdMgr = GetMetadataManager();
+            await mdMgr.Connect("a6k", "localhost:29092");
+            var coordinator = new ClientGroupCoordinator(mdMgr, "testgroup");
+
+            await coordinator.FindCoordinator();
+            Console.WriteLine($"coordinator: {coordinator.CoordinatorId}");
+
+            await coordinator.JoinGroup();
+            Console.WriteLine($"memberid: {coordinator.MemberId}");
+        }
+
 
         private static async Task Consumer()
         {
