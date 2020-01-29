@@ -32,7 +32,6 @@ namespace A6k.Kafka
         {
             var op = new Op<TRequest, TResponse>
             {
-                CorrelationId = Interlocked.Increment(ref correlationId),
                 ApiKey = apikey,
                 Version = version,
                 Request = request,
@@ -76,6 +75,7 @@ namespace A6k.Kafka
 
             async ValueTask SendRequest(Op op)
             {
+                op.CorrelationId = ++correlationId;
                 inflightWriter.TryWrite(op);
                 var buffer = new MemoryBufferWriter<byte>();
 
