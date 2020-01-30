@@ -14,13 +14,13 @@ namespace A6k.Kafka
     /// Instance members are not thread-safe.
     /// </remarks>
     [DebuggerDisplay("{" + nameof(DebuggerDisplay) + ",nq}")]
-    public class MemoryBufferWriter<T> : IBufferWriter<T>, IDisposable
+    public class MemoryBufferWriter : IBufferWriter<byte>, IDisposable
     {
         private const int DefaultBufferSize = 4 * 1024;
 
         private readonly Stack<SequenceSegment> segmentPool = new Stack<SequenceSegment>();
 
-        private readonly MemoryPool<T> memoryPool;
+        private readonly MemoryPool<byte> memoryPool;
 
         private SequenceSegment first;
 
@@ -30,23 +30,23 @@ namespace A6k.Kafka
         /// Initializes a new instance of the <see cref="Sequence"/> class.
         /// </summary>
         /// <param name="memoryPool">The pool to use for recycling backing arrays.</param>
-        public MemoryBufferWriter(MemoryPool<T> memoryPool = null)
+        public MemoryBufferWriter(MemoryPool<byte> memoryPool = null)
         {
-            this.memoryPool = memoryPool ?? MemoryPool<T>.Shared;
+            this.memoryPool = memoryPool ?? MemoryPool<byte>.Shared;
         }
 
         /// <summary>
         /// Gets this sequence expressed as a <see cref="ReadOnlySequence{T}"/>.
         /// </summary>
         /// <returns>A read only sequence representing the data in this object.</returns>
-        public ReadOnlySequence<T> AsReadOnlySequence => this;
+        public ReadOnlySequence<byte> AsReadOnlySequence => this;
 
         /// <summary>
         /// Gets the length of the sequence.
         /// </summary>
         public long Length => AsReadOnlySequence.Length;
 
-        public void CopyTo(IBufferWriter<T> output)
+        public void CopyTo(IBufferWriter<byte> output)
         {
             // copy buffer to output
             // Try to minimize segments in the target writer by hinting at the total size.
@@ -64,11 +64,11 @@ namespace A6k.Kafka
         /// Expresses this sequence as a <see cref="ReadOnlySequence{T}"/>.
         /// </summary>
         /// <param name="sequence">The sequence to convert.</param>
-        public static implicit operator ReadOnlySequence<T>(MemoryBufferWriter<T> sequence)
+        public static implicit operator ReadOnlySequence<byte>(MemoryBufferWriter sequence)
         {
             return sequence.first != null
-                ? new ReadOnlySequence<T>(sequence.first, sequence.first.Start, sequence.last, sequence.last.End)
-                : ReadOnlySequence<T>.Empty;
+                ? new ReadOnlySequence<byte>(sequence.first, sequence.first.Start, sequence.last, sequence.last.End)
+                : ReadOnlySequence<byte>.Empty;
         }
 
         /// <summary>
@@ -87,16 +87,14 @@ namespace A6k.Kafka
             // Before making any mutations, confirm that the block specified belongs to this sequence.
             var current = first;
             while (current != firstSegment && current != null)
-            {
                 current = current.Next;
-            }
 
-            if (current == null) ThrowCurrentNull();
-            void ThrowCurrentNull() => throw new ArgumentException("Position does not represent a valid position in this sequence.", nameof(position));
+            if (current == null)
+                throw new ArgumentException("Position does not represent a valid position in this sequence.", nameof(position));
 
             // Also confirm that the position is not a prior position in the block.
-            if (firstIndex < current.Start) ThrowEarlierPosition();
-            void ThrowEarlierPosition() => throw new ArgumentException("Position must not be earlier than current position.", nameof(position));
+            if (firstIndex < current.Start)
+                throw new ArgumentException("Position must not be earlier than current position.", nameof(position));
 
             // Now repeat the loop, performing the mutations.
             current = first;
@@ -110,16 +108,12 @@ namespace A6k.Kafka
             firstSegment.AdvanceTo(firstIndex);
 
             if (firstSegment.Length == 0)
-            {
                 firstSegment = RecycleAndGetNext(firstSegment);
-            }
 
             first = firstSegment;
 
             if (first == null)
-            {
                 last = null;
-            }
         }
 
         /// <summary>
@@ -129,12 +123,10 @@ namespace A6k.Kafka
         /// <param name="count">The number of elements written into memory.</param>
         public void Advance(int count)
         {
-            if (count < 0) ThrowNegative();
-            last.End += count;
+            if (count < 0)
+                throw new ArgumentOutOfRangeException(nameof(count), "Value must be greater than or equal to 0");
 
-            void ThrowNegative() => throw new ArgumentOutOfRangeException(
-                nameof(count),
-                "Value must be greater than or equal to 0");
+            last.End += count;
         }
 
         /// <summary>
@@ -142,32 +134,23 @@ namespace A6k.Kafka
         /// </summary>
         /// <param name="sizeHint">The size of the memory required, or 0 to just get a convenient (non-empty) buffer.</param>
         /// <returns>The requested memory.</returns>
-        public Memory<T> GetMemory(int sizeHint)
+        public Memory<byte> GetMemory(int sizeHint)
         {
-            if (sizeHint < 0) ThrowNegative();
+            if (sizeHint < 0)
+                throw new ArgumentOutOfRangeException(nameof(sizeHint), "Value for must be greater than or equal to 0");
 
             if (sizeHint == 0)
             {
                 if (last?.WritableBytes > 0)
-                {
                     sizeHint = last.WritableBytes;
-                }
                 else
-                {
                     sizeHint = DefaultBufferSize;
-                }
             }
 
             if (last == null || last.WritableBytes < sizeHint)
-            {
                 Append(memoryPool.Rent(Math.Min(sizeHint, memoryPool.MaxBufferSize)));
-            }
 
             return last.TrailingSlack;
-
-            void ThrowNegative() => throw new ArgumentOutOfRangeException(
-               nameof(sizeHint),
-               "Value for must be greater than or equal to 0");
         }
 
         /// <summary>
@@ -175,7 +158,7 @@ namespace A6k.Kafka
         /// </summary>
         /// <param name="sizeHint">The size of the memory required, or 0 to just get a convenient (non-empty) buffer.</param>
         /// <returns>The requested memory.</returns>
-        public Span<T> GetSpan(int sizeHint) => GetMemory(sizeHint).Span;
+        public Span<byte> GetSpan(int sizeHint) => GetMemory(sizeHint).Span;
 
         /// <summary>
         /// Clears the entire sequence, recycles associated memory into pools,
@@ -193,24 +176,21 @@ namespace A6k.Kafka
         {
             var current = first;
             while (current != null)
-            {
                 current = RecycleAndGetNext(current);
-            }
 
             first = last = null;
         }
 
-        private void Append(IMemoryOwner<T> array)
+        private void Append(IMemoryOwner<byte> array)
         {
-            if (array == null) ThrowNull();
+            if (array == null)
+                throw new ArgumentNullException(nameof(array));
 
             var segment = segmentPool.Count > 0 ? segmentPool.Pop() : new SequenceSegment();
             segment.SetMemory(array, 0, 0);
 
             if (last == null)
-            {
                 first = last = segment;
-            }
             else
             {
                 if (last.Length > 0)
@@ -225,14 +205,10 @@ namespace A6k.Kafka
                     if (first != last)
                     {
                         while (current.Next != last)
-                        {
                             current = current.Next;
-                        }
                     }
                     else
-                    {
                         first = segment;
-                    }
 
                     current.SetNext(segment);
                     RecycleAndGetNext(last);
@@ -240,8 +216,6 @@ namespace A6k.Kafka
 
                 last = segment;
             }
-
-            void ThrowNull() => throw new ArgumentNullException(nameof(array));
         }
 
         private SequenceSegment RecycleAndGetNext(SequenceSegment segment)
@@ -253,7 +227,7 @@ namespace A6k.Kafka
             return segment;
         }
 
-        private class SequenceSegment : ReadOnlySequenceSegment<T>
+        private class SequenceSegment : ReadOnlySequenceSegment<byte>
         {
             /// <summary>
             /// Backing field for the <see cref="End"/> property.
@@ -283,25 +257,23 @@ namespace A6k.Kafka
                 get => end;
                 set
                 {
-                    if (value > AvailableMemory.Length) ThrowOutOfRange();
+                    if (value > AvailableMemory.Length)
+                        throw new ArgumentOutOfRangeException(nameof(value), "Value must be less than or equal to AvailableMemory.Length");
 
                     end = value;
 
                     // If we ever support creating these instances on existing arrays, such that
                     // Start isn't 0 at the beginning, we'll have to "pin" Start and remove
-                    // Advance, forcing Sequence<T> itself to track it, the way Pipe does it internally.
+                    // Advance, forcing Sequence<byte> itself to track it, the way Pipe does it internally.
                     Memory = AvailableMemory.Slice(0, value);
-
-                    void ThrowOutOfRange() =>
-                        throw new ArgumentOutOfRangeException(nameof(value), "Value must be less than or equal to AvailableMemory.Length");
                 }
             }
 
-            internal Memory<T> TrailingSlack => AvailableMemory.Slice(End);
+            internal Memory<byte> TrailingSlack => AvailableMemory.Slice(End);
 
-            internal IMemoryOwner<T> MemoryOwner { get; private set; }
+            internal IMemoryOwner<byte> MemoryOwner { get; private set; }
 
-            internal Memory<T> AvailableMemory { get; private set; }
+            internal Memory<byte> AvailableMemory { get; private set; }
 
             internal int Length => End - Start;
 
@@ -321,12 +293,12 @@ namespace A6k.Kafka
                 set => base.Next = value;
             }
 
-            internal void SetMemory(IMemoryOwner<T> memoryOwner)
+            internal void SetMemory(IMemoryOwner<byte> memoryOwner)
             {
                 SetMemory(memoryOwner, 0, memoryOwner.Memory.Length);
             }
 
-            internal void SetMemory(IMemoryOwner<T> memoryOwner, int start, int end)
+            internal void SetMemory(IMemoryOwner<byte> memoryOwner, int start, int end)
             {
                 MemoryOwner = memoryOwner;
 
@@ -352,21 +324,20 @@ namespace A6k.Kafka
 
             internal void SetNext(SequenceSegment segment)
             {
-                if (segment == null) ThrowNull();
+                if (segment == null)
+                    throw new ArgumentNullException(nameof(segment));
 
                 Next = segment;
                 segment.RunningIndex = RunningIndex + End;
-
-                SequenceSegment ThrowNull() => throw new ArgumentNullException(nameof(segment));
             }
 
             internal void AdvanceTo(int offset)
             {
-                if (offset > End) ThrowOutOfRange();
+                if (offset > End)
+                    throw new ArgumentOutOfRangeException(nameof(offset));
+
                 Start = offset;
-                void ThrowOutOfRange() => throw new ArgumentOutOfRangeException(nameof(offset));
             }
         }
     }
-
 }

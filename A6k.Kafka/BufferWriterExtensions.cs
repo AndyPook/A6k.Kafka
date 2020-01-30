@@ -275,7 +275,7 @@ namespace A6k.Kafka
         }
         public static void WritePrefixed<T>(this IBufferWriter<byte> output, ISerializer<T> writer, T item, PrefixType prefixType)
         {
-            var buffer = new MemoryBufferWriter<byte>();
+            var buffer = new MemoryBufferWriter();
             writer.WriteMessage(item, buffer);
 
             switch (prefixType)
@@ -299,7 +299,7 @@ namespace A6k.Kafka
         }
         public static void WritePrefixed<T>(this IBufferWriter<byte> output, IMessageWriter<T> writer, T item, PrefixType prefixType)
         {
-            var buffer = new MemoryBufferWriter<byte>();
+            var buffer = new MemoryBufferWriter();
             writer.WriteMessage(item, buffer);
 
             switch (prefixType)
@@ -323,7 +323,7 @@ namespace A6k.Kafka
         }
         public static void WritePrefixed<T>(this IBufferWriter<byte> output, Action<T, IBufferWriter<byte>> writer, T item, PrefixType prefixType)
         {
-            var buffer = new MemoryBufferWriter<byte>();
+            var buffer = new MemoryBufferWriter();
             writer(item, buffer);
 
             switch (prefixType)

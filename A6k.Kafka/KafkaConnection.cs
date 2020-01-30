@@ -71,7 +71,7 @@ namespace A6k.Kafka
             {
                 op.CorrelationId = ++correlationId;
                 inflightWriter.TryWrite(op);
-                var buffer = new MemoryBufferWriter<byte>();
+                var buffer = new MemoryBufferWriter();
 
                 // write v1 Header
                 buffer.WriteShort(op.ApiKey);
