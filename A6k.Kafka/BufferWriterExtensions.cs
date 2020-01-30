@@ -57,46 +57,105 @@ namespace A6k.Kafka
             output.Advance(8);
         }
 
+        /// <summary>
+        /// Represents a sequence of characters. First the length N is given as an INT16.
+        /// Then N bytes follow which are the UTF-8 encoding of the character sequence.
+        /// Length must not be negative.
+        /// </summary>
+        /// <param name="output"></param>
+        /// <param name="text"></param>
         public static void WriteString(this IBufferWriter<byte> output, string text)
         {
-            var lengthBuffer = output.GetSpan(2);
             if (string.IsNullOrEmpty(text))
             {
-                BinaryPrimitives.WriteInt16BigEndian(lengthBuffer, 0);
-                output.Advance(2);
+                output.WriteShort(0);
                 return;
             }
 
-            var bytes = Encoding.UTF8.GetBytes(text);
-            output.WriteShort((short)bytes.Length);
-            output.Write(bytes);
+            var textLength = Encoding.UTF8.GetByteCount(text);
+            output.WriteShort((short)textLength);
+
+            var textSpan = output.GetSpan(textLength);
+            Encoding.UTF8.GetBytes(text, textSpan);
+            output.Advance(textLength);
         }
+
+        /// <summary>
+        /// Represents a sequence of characters or null. For non-null strings, first the length N is given as an INT16.
+        /// Then N bytes follow which are the UTF-8 encoding of the character sequence.
+        /// A null value is encoded with length of -1 and there are no following bytes.
+        /// </summary>
+        /// <param name="output"></param>
+        /// <param name="text"></param>
         public static void WriteNullableString(this IBufferWriter<byte> output, string text)
         {
-            var lengthBuffer = output.GetSpan(2);
             if (text == null)
             {
-                BinaryPrimitives.WriteInt16BigEndian(lengthBuffer, -1);
-                output.Advance(2);
+                output.WriteShort(-1);
                 return;
             }
             else if (text.Length == 0)
             {
-                BinaryPrimitives.WriteInt16BigEndian(lengthBuffer, 0);
-                output.Advance(2);
+                output.WriteShort(0);
                 return;
             }
 
-            var bytes = Encoding.UTF8.GetBytes(text);
-            output.WriteShort((short)bytes.Length);
-            output.Write(bytes);
+            var textLength = Encoding.UTF8.GetByteCount(text);
+            output.WriteShort((short)textLength);
+
+            var textSpan = output.GetSpan(textLength);
+            Encoding.UTF8.GetBytes(text, textSpan);
+            output.Advance(textLength);
         }
 
+        /// <summary>
+        /// Represents a sequence of characters. First the length N + 1 is given as an UNSIGNED_VARINT.
+        /// Then N bytes follow which are the UTF-8 encoding of the character sequence.
+        /// </summary>
+        /// <param name="output"></param>
+        /// <param name="text"></param>
         public static void WriteCompactString(this IBufferWriter<byte> output, string text)
         {
-            var bytes = Encoding.UTF8.GetBytes(text);
-            output.WriteVarInt((ulong)bytes.Length);
-            output.Write(bytes);
+            if (string.IsNullOrEmpty(text))
+            {
+                output.WriteVarInt(1);
+                return;
+            }
+
+            var textLength = Encoding.UTF8.GetByteCount(text);
+            output.WriteVarInt((uint)textLength + 1);
+
+            var textSpan = output.GetSpan(textLength);
+            Encoding.UTF8.GetBytes(text, textSpan);
+            output.Advance(textLength);
+        }
+
+        /// <summary>
+        /// Represents a sequence of characters. First the length N + 1 is given as an UNSIGNED_VARINT.
+        /// Then N bytes follow which are the UTF-8 encoding of the character sequence.
+        /// A null string is represented with a length of 0.
+        /// </summary>
+        /// <param name="output"></param>
+        /// <param name="text"></param>
+        public static void WriteCompactNullableString(this IBufferWriter<byte> output, string text)
+        {
+            if (text == null)
+            {
+                output.WriteVarInt(0);
+                return;
+            }
+            else if (text.Length == 0)
+            {
+                output.WriteVarInt(1);
+                return;
+            }
+
+            var textLength = Encoding.UTF8.GetByteCount(text);
+            output.WriteVarInt((uint)textLength + 1);
+
+            var textSpan = output.GetSpan(textLength);
+            Encoding.UTF8.GetBytes(text, textSpan);
+            output.Advance(textLength);
         }
 
         public static void WriteVarInt(this IBufferWriter<byte> output, int num)
@@ -156,7 +215,7 @@ namespace A6k.Kafka
         }
         public static void WriteArray(this IBufferWriter<byte> output, byte[] array)
         {
-            if (array == null || array.Length==0)
+            if (array == null || array.Length == 0)
             {
                 output.WriteInt(0);
                 return;

@@ -74,17 +74,16 @@ namespace A6k.Kafka
             return false;
         }
 
-        public ValueTask WriteMessage(object message, IBufferWriter<byte> output)
-        {
-            return default;
-        }
+        public ValueTask WriteMessage(object message, IBufferWriter<byte> output) => default;
 
         public ValueTask WriteMessage(string message, IBufferWriter<byte> output)
         {
-            // there are "better" ways of doing this
-            // but this  is simple, for now
-            var bytes = Encoding.UTF8.GetBytes(message);
-            output.Write(bytes);
+            var textLength = Encoding.UTF8.GetByteCount(message);
+            output.WriteShort((short)textLength);
+
+            var textSpan = output.GetSpan(textLength);
+            Encoding.UTF8.GetBytes(message, textSpan);
+            output.Advance(textLength);
             return default;
         }
 
