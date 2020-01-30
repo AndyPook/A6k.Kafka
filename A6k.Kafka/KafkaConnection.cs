@@ -13,6 +13,7 @@ namespace A6k.Kafka
     public partial class KafkaConnection : IAsyncDisposable
     {
         private readonly ConnectionContext connection;
+        private CancellationTokenSource cancellation = new CancellationTokenSource();
 
         private int correlationId = 0;
         private ChannelWriter<Op> outboundWriter;
@@ -23,8 +24,8 @@ namespace A6k.Kafka
             this.connection = connection;
             this.ClientId = clientId;
 
-            StartOutbound();
-            StartInbound();
+            StartOutbound(cancellation.Token);
+            StartInbound(cancellation.Token);
         }
 
         public string ClientId { get; }
@@ -61,18 +62,10 @@ namespace A6k.Kafka
 
             try
             {
-                while (await outboundReader.WaitToReadAsync(cancellationToken))
-                {
-                    while (outboundReader.TryRead(out var op))
-                    {
-                        await SendRequest(op);
-                    }
-                }
+                await foreach (var op in outboundReader.ReadAllAsync(cancellationToken))
+                    await SendRequest(op);
             }
-            catch (OperationCanceledException) { }
-            finally
-            {
-            }
+            catch (OperationCanceledException) { /* ignore cancellation */ }
 
             async ValueTask SendRequest(Op op)
             {
@@ -116,17 +109,23 @@ namespace A6k.Kafka
             {
                 try
                 {
-                    var result = await reader.ReadAsync(headerReader);
-                    var header = result.Message;
-
+                    var result = await reader.ReadAsync(headerReader, cancellationToken);
                     if (result.IsCompleted)
                         break;
+
+                    var header = result.Message;
                     reader.Advance();
 
                     if (!inflightReader.TryRead(out var op) || op.CorrelationId != header.CorrelationId)
                         throw new InvalidOperationException("no outstanding op for correlationId: " + header.CorrelationId);
 
                     await op.ParseResponse(reader);
+                }
+                catch (Exception)
+                {
+                    if (!connection.ConnectionClosed.IsCancellationRequested)
+                        throw;
+                    break;
                 }
                 finally
                 {
@@ -135,7 +134,11 @@ namespace A6k.Kafka
             }
         }
 
-        public ValueTask DisposeAsync() => connection.DisposeAsync();
+        public ValueTask DisposeAsync()
+        {
+            cancellation.Cancel();
+            return connection.DisposeAsync();
+        }
 
         private abstract class Op
         {
