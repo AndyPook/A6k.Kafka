@@ -19,7 +19,7 @@ namespace A6k.Kafka.Messages
         private void WriteProtocol(JoinGroupRequest.Protocol message, IBufferWriter<byte> output)
         {
             output.WriteString(message.Name);
-            output.WriteArray(message.Metadata);
+            output.WriteBytes(message.Metadata);
         }
     }
 }

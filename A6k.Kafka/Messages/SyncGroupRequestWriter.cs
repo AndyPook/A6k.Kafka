@@ -17,7 +17,7 @@ namespace A6k.Kafka.Messages
         private void WriteAssignment(SyncGroupRequest.Assignment message, IBufferWriter<byte> output)
         {
             output.WriteString(message.MemberId);
-            output.WriteArray(message.AssignmentData);
+            output.WriteBytes(message.AssignmentData);
         }
     }
 }

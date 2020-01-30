@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Buffers;
 using System.Buffers.Binary;
+using System.Runtime.CompilerServices;
 using System.Text;
 using Bedrock.Framework.Protocols;
 
@@ -8,6 +9,7 @@ namespace A6k.Kafka
 {
     public static class BufferWriterExtensions
     {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void WriteByte(this IBufferWriter<byte> output, byte num)
         {
             var buffer = output.GetSpan(1);
@@ -15,6 +17,20 @@ namespace A6k.Kafka
             output.Advance(1);
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static void WriteBytes(this IBufferWriter<byte> output, byte[] array)
+        {
+            if (array == null || array.Length == 0)
+            {
+                output.WriteInt(0);
+                return;
+            }
+
+            output.WriteInt(array.Length);
+            output.Write(array);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void WriteShort(this IBufferWriter<byte> output, short num)
         {
             var buffer = output.GetSpan(2);
@@ -22,6 +38,7 @@ namespace A6k.Kafka
             output.Advance(2);
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void WriteUShort(this IBufferWriter<byte> output, ushort num)
         {
             var buffer = output.GetSpan(2);
@@ -29,6 +46,7 @@ namespace A6k.Kafka
             output.Advance(2);
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void WriteInt(this IBufferWriter<byte> output, int num)
         {
             var buffer = output.GetSpan(4);
@@ -36,6 +54,7 @@ namespace A6k.Kafka
             output.Advance(4);
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void WriteUInt(this IBufferWriter<byte> output, uint num)
         {
             var buffer = output.GetSpan(4);
@@ -43,6 +62,7 @@ namespace A6k.Kafka
             output.Advance(4);
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void WriteLong(this IBufferWriter<byte> output, long num)
         {
             var buffer = output.GetSpan(8);
@@ -50,6 +70,7 @@ namespace A6k.Kafka
             output.Advance(8);
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void WriteULong(this IBufferWriter<byte> output, ulong num)
         {
             var buffer = output.GetSpan(8);
@@ -64,6 +85,7 @@ namespace A6k.Kafka
         /// </summary>
         /// <param name="output"></param>
         /// <param name="text"></param>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void WriteString(this IBufferWriter<byte> output, string text)
         {
             if (string.IsNullOrEmpty(text))
@@ -87,6 +109,7 @@ namespace A6k.Kafka
         /// </summary>
         /// <param name="output"></param>
         /// <param name="text"></param>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void WriteNullableString(this IBufferWriter<byte> output, string text)
         {
             if (text == null)
@@ -114,6 +137,7 @@ namespace A6k.Kafka
         /// </summary>
         /// <param name="output"></param>
         /// <param name="text"></param>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void WriteCompactString(this IBufferWriter<byte> output, string text)
         {
             if (string.IsNullOrEmpty(text))
@@ -137,6 +161,7 @@ namespace A6k.Kafka
         /// </summary>
         /// <param name="output"></param>
         /// <param name="text"></param>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void WriteCompactNullableString(this IBufferWriter<byte> output, string text)
         {
             if (text == null)
@@ -158,11 +183,14 @@ namespace A6k.Kafka
             output.Advance(textLength);
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void WriteVarInt(this IBufferWriter<byte> output, int num)
         {
             var n = (uint)((num << 1) ^ (num >> 31));
             output.WriteVarInt((ulong)n);
         }
+        
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void WriteVarInt(this IBufferWriter<byte> output, long num)
         {
             var n = (ulong)((num << 1) ^ (num >> 63));
@@ -170,9 +198,11 @@ namespace A6k.Kafka
         }
 
         //public static void WriteVarInt(this IBufferWriter<byte> output, int num) => output.WriteVarInt((ulong)num);
+        [MethodImpl(MethodImplOptions.AggressiveInlining)] 
         public static void WriteVarInt(this IBufferWriter<byte> output, uint num) => output.WriteVarInt((ulong)num);
         //public static void WriteVarInt(this IBufferWriter<byte> output, long num) => output.WriteVarInt((ulong)num);
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void WriteVarInt(this IBufferWriter<byte> output, ulong num)
         {
             Span<byte> buffer = stackalloc byte[9];
@@ -194,6 +224,7 @@ namespace A6k.Kafka
             output.Write(buffer.Slice(0, numBytes));
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void WriteArray<T>(this IBufferWriter<byte> output, T[] array, Action<T, IBufferWriter<byte>> writer)
         {
             if (array == null)
@@ -207,22 +238,32 @@ namespace A6k.Kafka
                 writer(array[i], output);
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void WriteArray(this IBufferWriter<byte> output, int[] array)
         {
-            output.WriteArray(array, WriteInt);
-
-            void WriteInt(int n, IBufferWriter<byte> output) => output.WriteInt(n);
-        }
-        public static void WriteArray(this IBufferWriter<byte> output, byte[] array)
-        {
-            if (array == null || array.Length == 0)
+            if (array == null)
             {
                 output.WriteInt(0);
                 return;
             }
 
             output.WriteInt(array.Length);
-            output.Write(array);
+            for (int i = 0; i < array.Length; i++)
+                output.WriteInt(array[i]);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static void WriteArray(this IBufferWriter<byte> output, string[] array)
+        {
+            if (array == null)
+            {
+                output.WriteInt(0);
+                return;
+            }
+
+            output.WriteInt(array.Length);
+            for (int i = 0; i < array.Length; i++)
+                output.WriteString(array[i]);
         }
 
         public enum PrefixType
