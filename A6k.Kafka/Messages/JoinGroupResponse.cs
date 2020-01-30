@@ -8,7 +8,7 @@ namespace A6k.Kafka.Messages
         public JoinGroupResponse(int throttleTime, short errorCode, int generationId, string protocolName, string leader, string memberId, Member[] members)
         {
             ThrottleTime = throttleTime;
-            ErrorCode = errorCode;
+            ErrorCode = (ResponseError)errorCode;
             GenerationId = generationId;
             ProtocolName = protocolName;
             Leader = leader;
@@ -17,7 +17,7 @@ namespace A6k.Kafka.Messages
         }
 
         public int ThrottleTime { get; }
-        public short ErrorCode { get; }
+        public ResponseError ErrorCode { get; }
         public int GenerationId { get; }
         public string ProtocolName { get; }
         public string Leader { get; }
