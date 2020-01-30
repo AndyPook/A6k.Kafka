@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Threading.Tasks;
 
 using A6k.Kafka.Messages;
@@ -33,6 +33,9 @@ namespace A6k.Kafka
 
         public ValueTask<HeartbeatResponse> Heartbeat(HeartbeatRequest request)
             => SendRequest(ApiKey.Heartbeat, 3, request, new HeartbeatRequestWriter(), new HeartbeatResponseReader());
+
+        public ValueTask<SyncGroupResponse> SyncGroup(SyncGroupRequest request)
+            => SendRequest(ApiKey.SyncGroup, 3, request, new SyncGroupRequestWriter(), new SyncGroupResponseReader());
 
         public ValueTask<ApiVersionResponse> ApiVersion()
             => SendRequest<object, ApiVersionResponse>(ApiKey.ApiVersion, 0, null, null, new ApiVersionResponseReader());
