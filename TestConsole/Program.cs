@@ -60,13 +60,22 @@ namespace TestConsole
         {
             var mdMgr = GetMetadataManager();
             await mdMgr.Connect("a6k", "localhost:29092");
-            var coordinator = new ClientGroupCoordinator(mdMgr, "testgroup");
+            var coordinator = new ClientGroupCoordinator(mdMgr, "testgroup", "test-topic");
 
             await coordinator.FindCoordinator();
             Console.WriteLine($"coordinator: {coordinator.CoordinatorId}");
 
             await coordinator.JoinGroup();
             Console.WriteLine($"memberid: {coordinator.MemberId}");
+
+            while (true)
+            {
+                await Task.Delay(1000);
+                await coordinator.SyncGroup();
+                Console.WriteLine("group version: " + coordinator.Members.Version);
+                foreach (var a in coordinator.Members.Assignments)
+                    Console.WriteLine($"{a.Topic}: {string.Join(",", a.Partitions)}");
+            }
         }
 
 

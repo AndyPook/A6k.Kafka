@@ -5,6 +5,10 @@ namespace A6k.Kafka.Messages
 {
     public class JoinGroupResponse
     {
+        public static readonly string UNKNOWN_PROTOCOL = string.Empty;
+        public const int UNKNOWN_GENERATION_ID = -1;
+        public static readonly string UNKNOWN_MEMBER_ID = string.Empty;
+
         public JoinGroupResponse(int throttleTime, short errorCode, int generationId, string protocolName, string leader, string memberId, Member[] members)
         {
             ThrottleTime = throttleTime;

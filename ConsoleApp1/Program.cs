@@ -10,7 +10,7 @@ namespace ConsoleApp1
 
     class Program
     {
-        static void Main(string[] args)
+        static async Task Main(string[] args)
         {
             var cts = new CancellationTokenSource();
             Console.CancelKeyPress += (_, e) =>
@@ -23,8 +23,14 @@ namespace ConsoleApp1
             //DoAdmin();
 
             _ = Consume(cts.Token);
-            
+
             //Produce();
+
+            while (!cts.IsCancellationRequested)
+            {
+                DoAdmin(getTopics: false);
+                await Task.Delay(2_000);
+            }
 
             Console.WriteLine("done...");
             Console.ReadLine();
@@ -33,7 +39,7 @@ namespace ConsoleApp1
         private static void Produce()
         {
             Console.WriteLine("Produce -----");
-            
+
             var producer = new ProducerBuilder<string, string>(
                 new AdminClientConfig()
                 {
@@ -41,12 +47,12 @@ namespace ConsoleApp1
                 })
                 .Build();
 
-            producer.Produce("test-topic", new Message<string, string> { Key = "fred", Value = "flintstone" });
-            producer.Produce("test-topic", new Message<string, string> { Key = "wilma", Value = "flintstone" });
+            producer.Produce("partitioned-topic", new Message<string, string> { Key = "fred", Value = "flintstone" });
+            producer.Produce("partitioned-topic", new Message<string, string> { Key = "wilma", Value = "flintstone" });
 
             var h = new Headers();
             h.Add("age", new byte[] { 0 });
-            producer.Produce("test-topic", new Message<string, string> { Key = "bambam", Value = "flintstone", Headers = h });
+            producer.Produce("partitioned-topic", new Message<string, string> { Key = "bambam", Value = "flintstone", Headers = h });
         }
 
         private static async Task Consume(CancellationToken cancellationToken)
@@ -57,23 +63,22 @@ namespace ConsoleApp1
                     new ConsumerConfig
                     {
                         BootstrapServers = "localhost:29092",
-                        GroupId = "testgroup-" + Guid.NewGuid().ToString(),
-                        EnablePartitionEof = true
+                        GroupId = "testgroup",
+                        EnablePartitionEof = true,
+                        FetchWaitMaxMs = 10_000 // make Fetch less agressive
                     }
                 )
-                .SetPartitionsAssignedHandler((_, p) =>p.Select(tp => new TopicPartitionOffset(tp, Offset.Beginning)).ToList())
+                .SetPartitionsAssignedHandler((_, p) => p.Select(tp => new TopicPartitionOffset(tp, Offset.Beginning)).ToList())
                 .Build();
 
-            consumer.Subscribe("test-topic");
+            consumer.Subscribe("partitioned-topic");
 
-            var timeout = TimeSpan.FromMilliseconds(200);
+            var timeout = TimeSpan.FromMilliseconds(1_000);
             while (!cancellationToken.IsCancellationRequested)
             {
                 var msg = consumer.Consume(timeout);
-                if (msg == null)
+                if (msg == null || msg.IsPartitionEOF)
                     continue;
-                if (msg.IsPartitionEOF)
-                    break;
 
                 Console.WriteLine($"key={msg.Key} value={msg.Value}");
             }
@@ -82,10 +87,8 @@ namespace ConsoleApp1
             Console.WriteLine("...consumer stopped");
         }
 
-        private static void DoAdmin()
+        private static void DoAdmin(bool getTopics = true, bool getGroups = true)
         {
-            Console.WriteLine("Admin -----");
-
             var admin = new AdminClientBuilder(
                 new AdminClientConfig()
                 {
@@ -94,10 +97,22 @@ namespace ConsoleApp1
                 })
                 .Build();
 
-            var metadata = admin.GetMetadata(TimeSpan.FromSeconds(5));
-            Console.WriteLine($"{metadata.OriginatingBrokerId} - {metadata.OriginatingBrokerName}");
-            foreach (var topic in metadata.Topics)
-                Console.WriteLine($"  {topic.Topic}");
+            if (getTopics)
+            {
+                Console.WriteLine("\n\n---- topics");
+                var metadata = admin.GetMetadata(TimeSpan.FromSeconds(5));
+                Console.WriteLine($"{metadata.OriginatingBrokerId} - {metadata.OriginatingBrokerName}");
+                foreach (var topic in metadata.Topics)
+                    Console.WriteLine($"  {topic.Topic}");
+            }
+
+            if (getGroups)
+            {
+                // FYI: ListGroups is broken :( (see https://github.com/confluentinc/confluent-kafka-dotnet/pull/1169)
+                var g = admin.ListGroup("testgroup", TimeSpan.FromSeconds(1));
+                if (g != null && g.Members?.Count > 0)
+                    Console.WriteLine($"group: {g.Group} - {string.Join(",", g.Members?.Select(m => m.MemberId))}");
+            }
         }
     }
 }

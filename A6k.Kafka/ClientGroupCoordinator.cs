@@ -65,20 +65,64 @@ namespace A6k.Kafka
         public async Task JoinGroup()
         {
             var b = metadataManager.GetBroker(coordinatorBrokerId);
-            var response = await b.Connection.JoinGroup(new JoinGroupRequest
+            bool joined = false;
+            while (!joined)
+            {
+                var response = await b.Connection.JoinGroup(new JoinGroupRequest
+                {
+                    GroupId = groupId,
+                    ProtocolType = "consumer",
+                    MemberId = memberId,
+                    SessionTimeout = 10_000,
+                    RebalanceTimeout = 300_000,
+                    Protocols = new JoinGroupRequest.Protocol[]
+                    {
+                        new JoinGroupRequest.Protocol{ Name = "range", Metadata = groupMetadata },
+                        new JoinGroupRequest.Protocol{ Name = "roundrobin", Metadata = groupMetadata }
+                    }
+                });
+                Console.WriteLine("JoinGroup: " + response.ErrorCode);
+                switch (response.ErrorCode)
+                {
+                    case ResponseError.NO_ERROR:
+                        memberId = response.MemberId;
+                        leaderId = response.Leader;
+                        generationId = response.GenerationId;
+                        joined = true;
+                        break;
+                    case ResponseError.MEMBER_ID_REQUIRED:
+                        memberId = response.MemberId;
+                        break;
+                    case ResponseError.UNKNOWN_MEMBER_ID:
+                        throw new InvalidOperationException();
+                    default:
+                        await Task.Delay(1_000);
+                        break;
+                }
+            }
+        }
+
+        public async Task SyncGroup()
+        {
+            var b = metadataManager.GetBroker(coordinatorBrokerId);
+            var response = await b.Connection.SyncGroup(new SyncGroupRequest
             {
                 GroupId = groupId,
-                ProtocolType = "client",
-                SessionTimeout = 10_000,
-                RebalanceTimeout = 300_000,
-                Protocols = new JoinGroupRequest.Protocol[]
-                {
-                    new JoinGroupRequest.Protocol{ Name = "range", Metadata = groupMetadata }
-                }
+                MemberId = memberId,
+                GenerationId = generationId
             });
+            if (response.ErrorCode != ResponseError.NO_ERROR)
+                throw new InvalidOperationException("SyncGroup error: " + response.ErrorCode);
 
-            memberId = response.MemberId;
+            if (IsLeader && response.Assignment?.Length == 0)
+            {
+                Console.WriteLine("leader but not assignments");
+            }
+
+            Members = ParseMemberState(new ReadOnlySequence<byte>(response.Assignment));
         }
+
+        public MemberState Members { get; private set; }
 
         private async Task SendHeartbeats()
         {
@@ -115,7 +159,7 @@ namespace A6k.Kafka
             public string[] Topics { get; set; }
             public byte[] UserData { get; set; }
         }
-        
+
         private ConsumerGroupMetadata ParseConsumerGroupMetadata(in ReadOnlySequence<byte> input)
         {
             var reader = new SequenceReader<byte>(input);
@@ -130,14 +174,77 @@ namespace A6k.Kafka
             {
                 Version = version,
                 Topics = topics,
-                UserData = userdata
+                UserData = userdata.ToArray()
             };
         }
 
         private byte[] WriteConsumerGroupMetadata(short version, params string[] topics)
         {
             var buffer = new MemoryBufferWriter<byte>();
-            
+
+            buffer.WriteShort(version);
+            buffer.WriteArray(topics);
+            buffer.WriteInt(0); // no userdata
+
+            return buffer.AsReadOnlySequence.ToArray();
+        }
+
+        public class MemberState
+        {
+            public MemberState(short version, TopicPartition[] assignments, byte[] userData)
+            {
+                Version = version;
+                Assignments = assignments;
+                UserData = userData;
+            }
+
+            public short Version { get; }
+            public TopicPartition[] Assignments { get; }
+            public byte[] UserData { get; }
+
+            public class TopicPartition
+            {
+                public TopicPartition(string topic, int[] partitions)
+                {
+                    Topic = topic;
+                    Partitions = partitions;
+                }
+
+                public string Topic { get; }
+                public int[] Partitions { get; }
+            }
+        }
+
+        private MemberState ParseMemberState(in ReadOnlySequence<byte> input)
+        {
+            var reader = new SequenceReader<byte>(input);
+            if (
+                !reader.TryReadShort(out var version) ||
+                !reader.TryReadArray<MemberState.TopicPartition>(TryParseAssignment, out var topics) ||
+                !reader.TryReadBytes(out var userdata)
+            )
+                throw new InvalidOperationException("BadFormat: ConsumerGroupMetadata");
+
+            return new MemberState(version, topics, userdata.ToArray());
+
+            bool TryParseAssignment(ref SequenceReader<byte> reader, out MemberState.TopicPartition member)
+            {
+                member = default;
+                if (
+                    !reader.TryReadString(out var topic) ||
+                    !reader.TryReadArrayOfInt(out var partitions)
+                )
+                    return false;
+
+                member = new MemberState.TopicPartition(topic, partitions);
+                return true;
+            }
+        }
+
+        private byte[] WriteConsumerMemberState(short version, params string[] topics)
+        {
+            var buffer = new MemoryBufferWriter<byte>();
+
             buffer.WriteShort(version);
             buffer.WriteArray(topics, (t, o) => o.WriteString(t));
             buffer.WriteInt(0); // no userdata
