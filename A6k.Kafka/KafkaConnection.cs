@@ -13,7 +13,6 @@ namespace A6k.Kafka
     public partial class KafkaConnection : IAsyncDisposable
     {
         private readonly ConnectionContext connection;
-        private readonly string clientId;
 
         private int correlationId = 0;
         private ChannelWriter<Op> outboundWriter;
@@ -22,11 +21,13 @@ namespace A6k.Kafka
         public KafkaConnection(ConnectionContext connection, string clientId)
         {
             this.connection = connection;
-            this.clientId = clientId;
+            this.ClientId = clientId;
 
             StartOutbound();
             StartInbound();
         }
+
+        public string ClientId { get; }
 
         private ValueTask<TResponse> SendRequest<TRequest, TResponse>(short apikey, short version, TRequest request, IMessageWriter<TRequest> messageWriter, IMessageReader<TResponse> messageReader)
         {
@@ -83,7 +84,7 @@ namespace A6k.Kafka
                 buffer.WriteShort(op.ApiKey);
                 buffer.WriteShort(op.Version);
                 buffer.WriteInt(op.CorrelationId);
-                buffer.WriteString(clientId);
+                buffer.WriteString(ClientId);
 
                 op.WriteMessage(buffer);
 
