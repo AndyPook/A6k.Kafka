@@ -19,24 +19,9 @@ namespace A6k.Kafka
                 return false;
             return true;
         }
-        public static bool TryReadShort(ref this SequenceReader<byte> reader, out short value)
-        {
-            if (!reader.TryReadBigEndian(out value))
-                return false;
-            return true;
-        }
-        public static bool TryReadInt(ref this SequenceReader<byte> reader, out int value)
-        {
-            if (!reader.TryReadBigEndian(out value))
-                return false;
-            return true;
-        }
-        public static bool TryReadLong(ref this SequenceReader<byte> reader, out long value)
-        {
-            if (!reader.TryReadBigEndian(out value))
-                return false;
-            return true;
-        }
+        public static bool TryReadShort(ref this SequenceReader<byte> reader, out short value) => reader.TryReadBigEndian(out value);
+        public static bool TryReadInt(ref this SequenceReader<byte> reader, out int value) => reader.TryReadBigEndian(out value);
+        public static bool TryReadLong(ref this SequenceReader<byte> reader, out long value) => reader.TryReadBigEndian(out value);
         public static bool TryReadBool(ref this SequenceReader<byte> reader, out bool value)
         {
             value = false;
@@ -46,16 +31,53 @@ namespace A6k.Kafka
             return true;
         }
 
-        public static bool TryReadBytes(ref this SequenceReader<byte> reader, out byte[] value)
+        public static bool TryReadBytes(ref this SequenceReader<byte> reader, out ReadOnlySpan<byte> value)
         {
             value = null;
             if (!reader.TryReadInt(out int length))
                 return false;
-
-            value = new byte[length];
-            if (!reader.TryCopyTo(value))
+            return TryReadBytesInternal(ref reader, length, out value);
+        }
+        public static bool TryReadCompactBytes(ref this SequenceReader<byte> reader, out ReadOnlySpan<byte> value)
+        {
+            value = null;
+            if (!reader.TryReadVarint32(out int length))
                 return false;
+            return TryReadBytesInternal(ref reader, length, out value);
+        }
+        public static bool TryReadBytesInternal(ref this SequenceReader<byte> reader, int length, out ReadOnlySpan<byte> value)
+        {
+            if (length <= 0)
+            {
+                value = Span<byte>.Empty;
+                return true;
+            }
 
+            var span = reader.UnreadSpan;
+            if (span.Length < length)
+                return TryReadMultisegmentBytes(ref reader, length, out value);
+
+            value = span.Slice(0, length);
+            reader.Advance(length);
+            return true;
+        }
+        private static unsafe bool TryReadMultisegmentBytes(ref SequenceReader<byte> reader, int length, out ReadOnlySpan<byte> value)
+        {
+            Debug.Assert(reader.UnreadSpan.Length < length);
+
+            // Not enough data in the current segment, try to peek for the data we need.
+            // In my use case, these strings cannot be more than 64kb, so stack memory is fine.
+            byte* buffer = stackalloc byte[length];
+            // Hack because the compiler thinks reader.TryCopyTo could store the span.
+            var tempSpan = new Span<byte>(buffer, length);
+
+            if (!reader.TryCopyTo(tempSpan))
+            {
+                value = default;
+                return false;
+            }
+
+            value = tempSpan;
             reader.Advance(length);
             return true;
         }
@@ -186,50 +208,6 @@ namespace A6k.Kafka
             return true;
         }
 
-        public static bool TryReadCompactBytes(ref this SequenceReader<byte> reader, out ReadOnlySpan<byte> value)
-        {
-            // Represents a sequence of characters. First the length N + 1 is given as an UNSIGNED_VARINT.
-            // Then N bytes follow which are the UTF-8 encoding of the character sequence.
-
-            value = null;
-            if (!reader.TryReadVarint32(out int length))
-                return false;
-            if (length <= 0)
-            {
-                value = Span<byte>.Empty;
-                return true;
-            }
-
-            var span = reader.UnreadSpan;
-            if (span.Length < length)
-                return TryReadMultisegmentBytes(ref reader, length, out value);
-
-            var slice = span.Slice(0, length);
-            value = slice;
-            reader.Advance(length);
-            return true;
-        }
-
-        private static unsafe bool TryReadMultisegmentBytes(ref SequenceReader<byte> reader, int length, out ReadOnlySpan<byte> value)
-        {
-            Debug.Assert(reader.UnreadSpan.Length < length);
-
-            // Not enough data in the current segment, try to peek for the data we need.
-            // In my use case, these strings cannot be more than 64kb, so stack memory is fine.
-            byte* buffer = stackalloc byte[length];
-            // Hack because the compiler thinks reader.TryCopyTo could store the span.
-            var tempSpan = new Span<byte>(buffer, length);
-
-            if (!reader.TryCopyTo(tempSpan))
-            {
-                value = default;
-                return false;
-            }
-
-            value = tempSpan;
-            reader.Advance(length);
-            return true;
-        }
 
 
         public static bool TryReadArray<T>(ref this SequenceReader<byte> reader, TryParse<T> readItem, Action<T[]> setter)
