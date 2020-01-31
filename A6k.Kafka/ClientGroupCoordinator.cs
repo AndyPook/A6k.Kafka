@@ -148,6 +148,46 @@ namespace A6k.Kafka
                         break;
                 }
 
+                //sensors.heartbeatSensor.record(response.requestLatencyMs());
+                //Errors error = heartbeatResponse.error();
+                switch (response.ErrorCode)
+                {
+                    case ResponseError.NO_ERROR:
+                        //log.debug("Received successful Heartbeat response");
+                        break;
+                    case ResponseError.COORDINATOR_NOT_AVAILABLE:
+                    case ResponseError.NOT_COORDINATOR:
+                        //log.info("Attempt to heartbeat failed since coordinator {} is either not started or not valid.",
+                        //coordinator());
+                        //markCoordinatorUnknown();
+                        //future.raise(error);
+                        break;
+                    case ResponseError.REBALANCE_IN_PROGRESS:
+                        //log.info("Attempt to heartbeat failed since group is rebalancing");
+                        //requestRejoin();
+                        //future.raise(error);
+                        break;
+                    case ResponseError.ILLEGAL_GENERATION:
+                        //log.info("Attempt to heartbeat failed since generation {} is not current", generation.generationId);
+                        //resetGenerationOnResponseError(ApiKeys.HEARTBEAT, error);
+                        //future.raise(error);
+                        break;
+                    case ResponseError.FENCED_INSTANCE_ID:
+                        //log.error("Received fatal exception: group.instance.id gets fenced");
+                        //future.raise(error);
+                        break;
+                    case ResponseError.UNKNOWN_MEMBER_ID:
+                        //log.info("Attempt to heartbeat failed for since member id {} is not valid.", generation.memberId);
+                        //resetGenerationOnResponseError(ApiKeys.HEARTBEAT, error);
+                        //future.raise(error);
+                        break;
+                    case ResponseError.GROUP_AUTHORIZATION_FAILED:
+                        //future.raise(GroupAuthorizationException.forGroupId(rebalanceConfig.groupId));
+                        break;
+                    default:
+                        throw new KafkaException("Unexpected error in heartbeat response: " + response.ErrorCode.ToString());
+                }
+
                 await Task.Delay(3_000); // heartbeat.interval.ms
             }
         }
