@@ -92,7 +92,7 @@ namespace A6k.Kafka.Messages
             output.WriteInt(0);  // partitionLeaderEpoch: int32
             output.WriteByte(2); // magic: int8(current magic value is 2)
 
-            var crc = Crc32C.Compute(buffer);
+            var crc = Hash.Crc32C.Compute(buffer);
             output.WriteUInt(crc);  // crc: int32
             buffer.CopyTo(output);
         }

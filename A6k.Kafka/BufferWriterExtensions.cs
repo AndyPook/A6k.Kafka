@@ -290,7 +290,7 @@ namespace A6k.Kafka
                     output.WriteVarInt((ulong)buffer.Length);
                     break;
                 case PrefixType.Crc:
-                    var crc = Crc32C.Compute(buffer);
+                    var crc = Hash.Crc32C.Compute(buffer);
                     output.WriteUInt(crc);
                     break;
             }
@@ -314,7 +314,7 @@ namespace A6k.Kafka
                     output.WriteVarInt((ulong)buffer.Length);
                     break;
                 case PrefixType.Crc:
-                    var crc = Crc32C.Compute(buffer);
+                    var crc = Hash.Crc32C.Compute(buffer);
                     output.WriteUInt(crc);
                     break;
             }
@@ -338,7 +338,7 @@ namespace A6k.Kafka
                     output.WriteVarInt((ulong)buffer.Length);
                     break;
                 case PrefixType.Crc:
-                    var crc = Crc32C.Compute(buffer);
+                    var crc = Hash.Crc32C.Compute(buffer);
                     output.WriteUInt(crc);
                     break;
             }
