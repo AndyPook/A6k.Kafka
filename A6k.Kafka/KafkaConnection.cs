@@ -70,7 +70,7 @@ namespace A6k.Kafka
             async ValueTask SendRequest(Op op)
             {
                 op.CorrelationId = ++correlationId;
-                inflightWriter.TryWrite(op);
+                await inflightWriter.WriteAsync(op, cancellationToken);
                 var buffer = new MemoryBufferWriter();
 
                 // write v1 Header
