@@ -220,7 +220,7 @@ namespace A6k.Kafka
 
         private byte[] WriteConsumerGroupMetadata(short version, params string[] topics)
         {
-            var buffer = new MemoryBufferWriter();
+            using var buffer = new MemoryBufferWriter();
 
             buffer.WriteShort(version);
             buffer.WriteArray(topics);
@@ -283,7 +283,7 @@ namespace A6k.Kafka
 
         private byte[] WriteConsumerMemberState(short version, params string[] topics)
         {
-            var buffer = new MemoryBufferWriter();
+            using var buffer = new MemoryBufferWriter();
 
             buffer.WriteShort(version);
             buffer.WriteArray(topics, (t, o) => o.WriteString(t));

@@ -64,6 +64,12 @@ namespace A6k.Kafka
             {
                 await foreach (var op in outboundReader.ReadAllAsync(cancellationToken))
                     await SendRequest(op);
+                //{
+                //    op.CorrelationId = ++correlationId;
+                //    await inflightWriter.WriteAsync(op, cancellationToken);
+                //    WriteRequest(op);
+                //    await connection.Transport.Output.FlushAsync().ConfigureAwait(false);
+                //}
             }
             catch (OperationCanceledException) { /* ignore cancellation */ }
 
@@ -71,7 +77,7 @@ namespace A6k.Kafka
             {
                 op.CorrelationId = ++correlationId;
                 await inflightWriter.WriteAsync(op, cancellationToken);
-                var buffer = new MemoryBufferWriter();
+                using var buffer = new MemoryBufferWriter();
 
                 // write v1 Header
                 buffer.WriteShort(op.ApiKey);
@@ -85,6 +91,22 @@ namespace A6k.Kafka
                 buffer.CopyTo(connection.Transport.Output);
                 await connection.Transport.Output.FlushAsync().ConfigureAwait(false);
             }
+
+            //void WriteRequest(Op op)
+            //{
+            //    var buffer = MemoryBufferWriter.CreateWriter();
+
+            //    // write v1 Header
+            //    buffer.WriteShort(op.ApiKey);
+            //    buffer.WriteShort(op.Version);
+            //    buffer.WriteInt(op.CorrelationId);
+            //    buffer.WriteString(ClientId);
+
+            //    op.WriteMessage(buffer);
+
+            //    connection.Transport.Output.WriteInt((int)buffer.BytesCommitted);
+            //    buffer.CopyTo(connection.Transport.Output);
+            //}
         }
 
         private void StartInbound(CancellationToken cancellationToken = default)

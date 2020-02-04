@@ -9,6 +9,15 @@ namespace A6k.Kafka
 {
     public static class BufferWriterExtensions
     {
+        public static void Write(this IBufferWriter<byte> output, ReadOnlySequence<byte> sequence)
+        {
+            if (sequence.Length == 0)
+                return;
+
+            foreach (var memory in sequence)
+                output.Write(memory.Span);
+        }
+
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void WriteByte(this IBufferWriter<byte> output, byte num)
         {
@@ -189,7 +198,7 @@ namespace A6k.Kafka
             var n = (uint)((num << 1) ^ (num >> 31));
             output.WriteVarInt((ulong)n);
         }
-        
+
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void WriteVarInt(this IBufferWriter<byte> output, long num)
         {
@@ -198,7 +207,7 @@ namespace A6k.Kafka
         }
 
         //public static void WriteVarInt(this IBufferWriter<byte> output, int num) => output.WriteVarInt((ulong)num);
-        [MethodImpl(MethodImplOptions.AggressiveInlining)] 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void WriteVarInt(this IBufferWriter<byte> output, uint num) => output.WriteVarInt((ulong)num);
         //public static void WriteVarInt(this IBufferWriter<byte> output, long num) => output.WriteVarInt((ulong)num);
 
@@ -275,7 +284,7 @@ namespace A6k.Kafka
         }
         public static void WritePrefixed<T>(this IBufferWriter<byte> output, ISerializer<T> writer, T item, PrefixType prefixType)
         {
-            var buffer = new MemoryBufferWriter();
+            using var buffer = new MemoryBufferWriter();
             writer.WriteMessage(item, buffer);
 
             switch (prefixType)
@@ -299,7 +308,7 @@ namespace A6k.Kafka
         }
         public static void WritePrefixed<T>(this IBufferWriter<byte> output, IMessageWriter<T> writer, T item, PrefixType prefixType)
         {
-            var buffer = new MemoryBufferWriter();
+            using var buffer = new MemoryBufferWriter();
             writer.WriteMessage(item, buffer);
 
             switch (prefixType)
@@ -323,7 +332,7 @@ namespace A6k.Kafka
         }
         public static void WritePrefixed<T>(this IBufferWriter<byte> output, Action<T, IBufferWriter<byte>> writer, T item, PrefixType prefixType)
         {
-            var buffer = new MemoryBufferWriter();
+            using var buffer = new MemoryBufferWriter();
             writer(item, buffer);
 
             switch (prefixType)
@@ -365,6 +374,50 @@ namespace A6k.Kafka
             // Try to minimize segments in the target writer by hinting at the total size.
             var buffer = output.GetSpan(item.Length);
             item.CopyTo(buffer);
+            output.Advance(item.Length);
+        }
+        public static void WritePrefixed(this IBufferWriter<byte> output, ReadOnlySequence<byte> item, PrefixType prefixType)
+        {
+            switch (prefixType)
+            {
+                case PrefixType.Int:
+                    output.WriteInt((int)item.Length);
+                    break;
+                case PrefixType.VarInt:
+                    output.WriteVarInt(item.Length);
+                    break;
+                case PrefixType.UnsignedVarInt:
+                    output.WriteVarInt((ulong)item.Length);
+                    break;
+                case PrefixType.Crc:
+                    throw new InvalidOperationException("CRC not supported here");
+            }
+
+            // Try to minimize segments in the target writer by hinting at the total size.
+            var buffer = output.GetSpan((int)item.Length);
+            item.CopyTo(buffer);
+            output.Advance((int)item.Length);
+        }
+        public static void WritePrefixed(this IBufferWriter<byte> output, Memory<byte> item, PrefixType prefixType)
+        {
+            switch (prefixType)
+            {
+                case PrefixType.Int:
+                    output.WriteInt(item.Length);
+                    break;
+                case PrefixType.VarInt:
+                    output.WriteVarInt(item.Length);
+                    break;
+                case PrefixType.UnsignedVarInt:
+                    output.WriteVarInt((ulong)item.Length);
+                    break;
+                case PrefixType.Crc:
+                    throw new InvalidOperationException("CRC not supported here");
+            }
+
+            // Try to minimize segments in the target writer by hinting at the total size.
+            var buffer = output.GetSpan(item.Length);
+            item.Span.CopyTo(buffer);
             output.Advance(item.Length);
         }
     }

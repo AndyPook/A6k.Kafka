@@ -69,7 +69,7 @@ namespace A6k.Kafka.Messages
 
 
             // crc
-            var buffer = new MemoryBufferWriter();
+            using var buffer = new MemoryBufferWriter();
 
             buffer.WriteUShort(0b0000_0000_0000_0000); // attributes: int16
             buffer.WriteInt(0);  // lastOffsetDelta: int32
@@ -118,7 +118,7 @@ namespace A6k.Kafka.Messages
             // Value: byte[]
 
 
-            var buffer = new MemoryBufferWriter();
+            using var buffer = new MemoryBufferWriter();
 
             buffer.WriteByte(0);         // attributes: int8 - bit 0~7: unused
             buffer.WriteVarInt((uint)0); // timestampDelta: varint
@@ -128,11 +128,11 @@ namespace A6k.Kafka.Messages
             buffer.WritePrefixed(valueWriter, message.Value, BufferWriterExtensions.PrefixType.VarInt);
 
             // headers
-            buffer.WriteVarInt((ulong)message.HeadersLength);
+            buffer.WriteVarInt((ulong)message.HeadersCount);
             message.ForEachHeader(h =>
             {
                 buffer.WriteCompactString(h.Key);
-                buffer.WritePrefixed(h.Value, BufferWriterExtensions.PrefixType.VarInt);
+                buffer.WritePrefixed(h.Value.AsSpan(), BufferWriterExtensions.PrefixType.VarInt);
             });
 
             output.WriteVarInt(buffer.Length);
