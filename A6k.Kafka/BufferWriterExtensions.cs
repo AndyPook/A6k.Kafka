@@ -282,10 +282,10 @@ namespace A6k.Kafka
             UnsignedVarInt,
             Crc
         }
-        public static void WritePrefixed<T>(this IBufferWriter<byte> output, ISerializer<T> writer, T item, PrefixType prefixType)
+        public static void WritePrefixed<T>(this IBufferWriter<byte> output, ISerializer<T> serializer, T item, PrefixType prefixType)
         {
             using var buffer = new MemoryBufferWriter();
-            writer.WriteMessage(item, buffer);
+            serializer.WriteMessage(item, buffer);
 
             switch (prefixType)
             {

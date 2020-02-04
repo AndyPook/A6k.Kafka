@@ -7,8 +7,7 @@ using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
-using A6k.Kafka.Messages;
-using System.Diagnostics.CodeAnalysis;
+using A6k.Kafka.Metadata;
 
 namespace A6k.Kafka
 {
@@ -47,7 +46,13 @@ namespace A6k.Kafka
                     foreach (var broker in meta.Brokers)
                     {
                         logger.LogInformation("Discovered: {broker}", server);
-                        brokers[broker.NodeId] = new Broker(broker, kafkaConnectionFactory);
+                        brokers[broker.NodeId] = new Broker(
+                            broker.NodeId,
+                            broker.Host,
+                            broker.Port,
+                            broker.Rack,
+                            kafkaConnectionFactory
+                        );
                     }
 
                     break;
@@ -61,7 +66,7 @@ namespace A6k.Kafka
                 throw new InvalidOperationException("no reachable brokers via: " + bootstrapServers);
 
             foreach (var broker in brokers.Values)
-                await broker.Connect(clientId);
+                await broker.Start(clientId);
 
             topics = new TopicMetadataCache(this);
         }
@@ -91,94 +96,12 @@ namespace A6k.Kafka
             return brokers.Values.First();
         }
 
-        public ValueTask<MetadataResponse.TopicMetadata> GetTopic(string topicName) => topics.GetTopic(topicName);
+        public ValueTask<TopicMetadata> GetTopic(string topicName) => topics.GetTopic(topicName);
 
         public async ValueTask DisposeAsync()
         {
             foreach (var b in Brokers)
                 await b.DisposeAsync();
-        }
-
-        public class Broker : IAsyncDisposable, IEquatable<Broker>
-        {
-            private readonly KafkaConnectionFactory kafkaConnectionFactory;
-
-            public Broker(MetadataResponse.Broker broker, KafkaConnectionFactory kafkaConnectionFactory)
-            {
-                _ = broker ?? throw new ArgumentNullException(nameof(broker));
-                NodeId = broker.NodeId;
-                Host = broker.Host;
-                Port = broker.Port;
-                Rack = broker.Rack;
-                this.kafkaConnectionFactory = kafkaConnectionFactory ?? throw new ArgumentNullException(nameof(kafkaConnectionFactory));
-            }
-
-            public int NodeId { get; }
-            public string Host { get; }
-            public int Port { get; }
-            public string Rack { get; }
-
-            public KafkaConnection Connection { get; private set; }
-            public IReadOnlyList<ApiVersion> ApiVersions { get; private set; }
-
-            public async Task Connect(string clientId)
-            {
-                Connection = await kafkaConnectionFactory.CreateConnection(Host, Port, clientId);
-                var version = await Connection.ApiVersion();
-                ApiVersions = version.ApiVersions.Select(x => new ApiVersion(x.ApiKey, x.MinVersion, x.MaxVersion)).ToArray();
-            }
-
-            public class ApiVersion
-            {
-                public ApiVersion(short apiKey, short minVersion, short maxVersion)
-                {
-                    ApiKey = apiKey;
-                    MinVersion = minVersion;
-                    MaxVersion = maxVersion;
-                }
-
-                public short ApiKey { get; }
-                public short MinVersion { get; }
-                public short MaxVersion { get; }
-            }
-
-            public bool Equals(string host, int port, string rack = null)
-            {
-                if (rack == null)
-                    return string.Equals(Host, host) && Port == port;
-
-                return string.Equals(Host, host) && Port == port && string.Equals(Rack, rack);
-            }
-
-            public override bool Equals(object obj) => obj is Broker b && Equals(b);
-
-            public bool Equals([AllowNull] Broker other)
-            {
-                if (ReferenceEquals(null, other))
-                    return false;
-                if (ReferenceEquals(this, other))
-                    return true;
-
-                return
-                    NodeId == other.NodeId &&
-                    string.Equals(Host, other.Host) &&
-                    Port == other.Port &&
-                    string.Equals(Rack, other.Rack);
-            }
-
-            /// <summary>	
-            /// Gets the hashcode of the WebSocketHeader value.	
-            /// </summary>	
-            /// <returns>The value hashcode.</returns>
-            public override int GetHashCode() => HashCode.Combine(NodeId, Host, Port, Rack);
-
-            /// <summary>
-            /// Creates a string representation of the WebSocketHeader.
-            /// </summary>
-            /// <returns>A string representation of the WebSocketHeader.</returns>
-            public override string ToString() => $"node: {NodeId}: {Host}:{Port} ({Rack})";
-
-            public ValueTask DisposeAsync() => Connection.DisposeAsync();
         }
 
         private class TopicMetadataCache
@@ -197,7 +120,7 @@ namespace A6k.Kafka
                 this.timeout = timeout;
             }
 
-            public async ValueTask<MetadataResponse.TopicMetadata> GetTopic(string topicName)
+            public async ValueTask<TopicMetadata> GetTopic(string topicName)
             {
                 // TODO: Lock?
 
@@ -207,7 +130,16 @@ namespace A6k.Kafka
                     var broker = metadataManager.GetRandomBroker();
                     var md = await broker.Connection.Metadata(topicName);
                     entry.AbsoluteExpirationRelativeToNow = timeout;
-                    return md.Topics[0];
+
+                    var tmd = md.Topics[0];
+                    var t = new TopicMetadata(
+                        tmd.TopicName, 
+                        tmd.IsInternal, 
+                        tmd.Partitions
+                            .Select(p => new PartitionMetadata(p.PartitionId, p.Leader, p.Replicas.ToArray(), p.Isr.ToArray()))
+                            .ToArray()
+                    );
+                    return t;
                 });
             }
 

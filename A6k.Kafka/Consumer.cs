@@ -1,8 +1,10 @@
-﻿using System;
+using System;
 using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
+
 using A6k.Kafka.Messages;
+using A6k.Kafka.Metadata;
 
 namespace A6k.Kafka
 {
@@ -15,7 +17,7 @@ namespace A6k.Kafka
         private IDeserializer<TKey> keyDeserializer;
         private IDeserializer<TValue> valueDeserializer;
 
-        private MetadataResponse.TopicMetadata topicMetadata;
+        private TopicMetadata topicMetadata;
 
         private ChannelReader<Message<TKey, TValue>> messageReader;
 
@@ -60,7 +62,7 @@ namespace A6k.Kafka
             }
         }
 
-        private async Task Fetch(ChannelWriter<Message<TKey, TValue>> messageWriter, string topic, MetadataResponse.PartitionMetadata partition, MetadataManager.Broker broker, CancellationToken cancellationToken)
+        private async Task Fetch(ChannelWriter<Message<TKey, TValue>> messageWriter, string topic, PartitionMetadata partition, Broker broker, CancellationToken cancellationToken)
         {
             long offset = 0;
             while (!cancellationToken.IsCancellationRequested)
@@ -140,7 +142,7 @@ namespace A6k.Kafka
 
     public class ConsumerPartitionFetcher
     {
-        private async Task Fetch(ChannelWriter<RecordBatch.Record> messageWriter, string topic, MetadataResponse.PartitionMetadata partition, MetadataManager.Broker broker, CancellationToken cancellationToken)
+        private async Task Fetch(ChannelWriter<RecordBatch.Record> messageWriter, string topic, PartitionMetadata partition, Broker broker, CancellationToken cancellationToken)
         {
             long offset = 0;
             while (!cancellationToken.IsCancellationRequested)
