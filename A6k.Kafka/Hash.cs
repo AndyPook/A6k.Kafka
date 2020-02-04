@@ -55,6 +55,56 @@ namespace A6k.Kafka
 
                 return h;
             }
+
+            public static uint Compute(ReadOnlySequence<byte> input)
+            {
+                const uint seed = 0xc58f1a7a;
+
+                const uint m = 0x5bd1e995;
+                const int r = 24;
+
+                var length = input.Length;
+                if (length == 0)
+                    return 0;
+                uint h = seed ^ (uint)length;
+                int currentIndex = 0;
+                while (length >= 4)
+                {
+                    uint k = (uint)(input[currentIndex++] | input[currentIndex++] << 8 | input[currentIndex++] << 16 | input[currentIndex++] << 24);
+                    k *= m;
+                    k ^= k >> r;
+                    k *= m;
+
+                    h *= m;
+                    h ^= k;
+                    length -= 4;
+                }
+                switch (length)
+                {
+                    case 3:
+                        h ^= (ushort)(input[currentIndex++] | input[currentIndex++] << 8);
+                        h ^= (uint)(input[currentIndex] << 16);
+                        h *= m;
+                        break;
+                    case 2:
+                        h ^= (ushort)(input[currentIndex++] | input[currentIndex] << 8);
+                        h *= m;
+                        break;
+                    case 1:
+                        h ^= input[currentIndex];
+                        h *= m;
+                        break;
+                    default:
+                        break;
+                }
+
+                h ^= h >> 13;
+                h *= m;
+                h ^= h >> 15;
+
+                return h;
+            }
+
         }
 
         public static Crc32Hash Crc32 => Crc32Hash.Crc32;

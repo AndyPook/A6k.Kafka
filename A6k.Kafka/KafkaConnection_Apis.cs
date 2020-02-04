@@ -10,6 +10,9 @@ namespace A6k.Kafka
         public ValueTask<ProduceResponse> Produce<TKey, TValue>(string topic, Message<TKey, TValue> message, ISerializer<TKey> keyWriter, ISerializer<TValue> valueWriter)
             => SendRequest(ApiKey.Produce, 7, message, new ProduceRequestWriter<TKey, TValue>(topic, keyWriter, valueWriter), new ProduceResponseReader());
 
+        public ValueTask<ProduceResponse> Produce(string topic, ProducerRecord message)
+            => SendRequest(ApiKey.Produce, 7, message, new ProducerRecordRequestWriter(topic), new ProduceResponseReader());
+
         public ValueTask<FetchResponse> Fetch(FetchRequest request)
             => SendRequest(ApiKey.Fetch, 11, request, new FetchRequestWriter(), new FetchResponseReader());
 
