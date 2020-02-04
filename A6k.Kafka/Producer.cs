@@ -31,7 +31,8 @@ namespace A6k.Kafka
 
         public async ValueTask Produce(Message<TKey, TValue> message)
         {
-            var record = GetRecord(message);
+            var record = ProducerRecord.Create(message, keySerializer, valueSerializer);
+
             var t = await cluster.GetTopic(topic);
             if (message.PartitionId.HasValue)
                 record.PartitionId = message.PartitionId.Value;
@@ -40,24 +41,17 @@ namespace A6k.Kafka
                 if (t.Partitions.Count == 0)
                     record.PartitionId = 0;
                 else
-                    record.PartitionId = await partitioner.GetPartition(topic, record.Key, cluster);
+                    record.PartitionId = await partitioner.GetPartition(topic, record.KeyBytes, cluster);
             }
 
-            var partitionLeader = t.Partitions[record.PartitionId].Leader;
+            if (!record.PartitionId.HasValue)
+                throw new InvalidOperationException("PartitionId not specified");
+
+            var partitionLeader = t.Partitions[record.PartitionId.Value].Leader;
             var b = cluster.GetBroker(partitionLeader);
 
-            await b.Connection.Produce(topic, record);
-        }
-
-        private ProducerRecord GetRecord(Message<TKey, TValue> message)
-        {
-            var record = new ProducerRecord
-            {
-                Topic = topic,
-                Key = keySerializer.WriteMessage(message.Key, )
-            };
-
-            return record;
+            var response = await b.Connection.Produce(topic, message, keySerializer, valueSerializer);
+            // do something with ErrorCode
         }
     }
 }

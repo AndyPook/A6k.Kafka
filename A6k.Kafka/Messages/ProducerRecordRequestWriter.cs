@@ -4,14 +4,80 @@ using Bedrock.Framework.Protocols;
 
 namespace A6k.Kafka.Messages
 {
-    public class ProducerRecord
+    public class ProducerRecord : IDisposable
     {
         public string Topic { get; set; }
-        public int PartitionId { get; set; }
-        public ReadOnlySequence<byte> Key { get; set; }
-        public ReadOnlySequence<byte> Value { get; set; }
-        public int HeadersCount { get; set; }
-        public ReadOnlySequence<byte> Headers { get; set; }
+        public int? PartitionId { get; set; }
+
+        public ReadOnlySequence<byte> KeyBytes { get; private set; }
+
+        public static ProducerRecord Create<TKey, TValue>(Message<TKey, TValue> message, ISerializer<TKey> keySerializer, ISerializer<TValue> valueSerializer)
+        {
+            // Record...
+            // length: varint
+            // attributes: int8
+            //     bit 0~7: unused
+            // timestampDelta: varint
+            // offsetDelta: varint
+            // keyLength: varint
+            // key: byte[]
+            // valueLen: varint
+            // value: byte[]
+            // Headers => [Header]
+
+            // Header...
+            // headerKeyLength: varint
+            // headerKey: String
+            // headerValueLength: varint
+            // Value: byte[]
+
+            var record = new ProducerRecord
+            {
+                Topic = message.Topic,
+                PartitionId = message.PartitionId
+            };
+
+            var buffer = record.buffer;
+
+            buffer.WriteByte(0);         // attributes: int8 - bit 0~7: unused
+            buffer.WriteVarInt((uint)0); // timestampDelta: varint
+            buffer.WriteVarInt((uint)0); // offsetDelta: varint
+
+            record.KeyBytes = WritePrefixed(buffer, keySerializer, message.Key);
+            WritePrefixed(buffer, valueSerializer, message.Value);
+
+            // headers
+            buffer.WriteVarInt((ulong)message.HeadersCount);
+            message.ForEachHeader(h =>
+            {
+                buffer.WriteCompactString(h.Key);
+                buffer.WritePrefixed(h.Value.AsSpan(), BufferWriterExtensions.PrefixType.VarInt);
+            });
+
+            return record;
+
+            ReadOnlySequence<byte> WritePrefixed<T>(IBufferWriter<byte> output, ISerializer<T> serializer, T item)
+            {
+                using var buffer = new MemoryBufferWriter();
+                serializer.WriteMessage(item, buffer);
+                output.WriteVarInt(buffer.Length);
+
+                buffer.CopyTo(output);
+                return buffer.AsReadOnlySequence;
+            }
+        }
+
+        private MemoryBufferWriter buffer = new MemoryBufferWriter();
+
+        public int Length => buffer.Length;
+
+        public void CopyTo(IBufferWriter<byte> output)
+        {
+            output.WriteVarInt(buffer.Length);
+            buffer.CopyTo(output);
+        }
+
+        public void Dispose() => buffer.Dispose();
     }
 
     public class ProducerRecordRequestWriter : IMessageWriter<ProducerRecord>
@@ -103,43 +169,10 @@ namespace A6k.Kafka.Messages
             buffer.CopyTo(output);
         }
 
-        public void WriteRecord(ProducerRecord message, IBufferWriter<byte> output)
+        public void WriteRecord(ProducerRecord record, IBufferWriter<byte> output)
         {
-            // Record...
-            // length: varint
-            // attributes: int8
-            //     bit 0~7: unused
-            // timestampDelta: varint
-            // offsetDelta: varint
-            // keyLength: varint
-            // key: byte[]
-            // valueLen: varint
-            // value: byte[]
-            // Headers => [Header]
-
-            // Header...
-            // headerKeyLength: varint
-            // headerKey: String
-            // headerValueLength: varint
-            // Value: byte[]
-
-
-            using var buffer = new MemoryBufferWriter();
-
-            buffer.WriteByte(0);         // attributes: int8 - bit 0~7: unused
-            buffer.WriteVarInt((uint)0); // timestampDelta: varint
-            buffer.WriteVarInt((uint)0); // offsetDelta: varint
-
-            buffer.WritePrefixed(message.Key, BufferWriterExtensions.PrefixType.VarInt);
-            buffer.WritePrefixed(message.Value, BufferWriterExtensions.PrefixType.VarInt);
-
-            // headers
-            buffer.WriteVarInt((ulong)message.HeadersCount);
-            if (message.HeadersCount > 0)
-                buffer.Write(message.Headers);
-
-            output.WriteVarInt(buffer.Length);
-            buffer.CopyTo(output);
+            output.WriteVarInt(record.Length);
+            record.CopyTo(output);
         }
     }
 }
