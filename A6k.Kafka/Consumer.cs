@@ -1,6 +1,4 @@
 ﻿using System;
-using System.Collections.Concurrent;
-using System.Text;
 using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
@@ -76,12 +74,12 @@ namespace A6k.Kafka
                     IsolationLevel = 0,
                     SessionId = 0,
                     SessionEpoc = -1,
-                    Topics = new FetchRequest.Topic[]
+                    Topics = new []
                     {
                             new FetchRequest.Topic
                             {
                                 TopicName = topic,
-                                Partitions = new FetchRequest.Topic.Partition[]
+                                Partitions = new []
                                 {
                                     new FetchRequest.Topic.Partition
                                     {

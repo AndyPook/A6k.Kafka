@@ -26,11 +26,7 @@ namespace ConsoleApp1
 
             //Produce();
 
-            while (!cts.IsCancellationRequested)
-            {
-                DoAdmin(getTopics: false);
-                await Task.Delay(2_000);
-            }
+            await GetGroup();
 
             Console.WriteLine("done...");
             Console.ReadLine();
@@ -73,14 +69,14 @@ namespace ConsoleApp1
 
             consumer.Subscribe("partitioned-topic");
 
-            var timeout = TimeSpan.FromMilliseconds(1_000);
+            var timeout = TimeSpan.FromMilliseconds(100);
             while (!cancellationToken.IsCancellationRequested)
             {
                 var msg = consumer.Consume(timeout);
                 if (msg == null || msg.IsPartitionEOF)
                     continue;
 
-                Console.WriteLine($"key={msg.Key} value={msg.Value}");
+                Console.WriteLine($"key={msg.Key} value={msg.Value} (p:{msg.Partition.Value} o:{msg.Offset.Value})");
             }
 
             consumer.Dispose();
@@ -108,10 +104,39 @@ namespace ConsoleApp1
 
             if (getGroups)
             {
+                while (true)
+                {
+                    // FYI: ListGroups is broken :( (see https://github.com/confluentinc/confluent-kafka-dotnet/pull/1169)
+                    var g = admin.ListGroup("testgroup", TimeSpan.FromSeconds(1));
+                    if (g != null && g.Members?.Count > 0)
+                    {
+                        Console.WriteLine($"group: {g.Group} - {string.Join(",", g.Members?.Select(m => m.MemberId))}");
+                        break;
+                    }
+                }
+            }
+        }
+        private static async Task GetGroup()
+        {
+            var admin = new AdminClientBuilder(
+                new AdminClientConfig()
+                {
+                    BootstrapServers = "localhost:29092",
+                    ApiVersionRequest = true
+                })
+                .Build();
+
+            while (true)
+            {
                 // FYI: ListGroups is broken :( (see https://github.com/confluentinc/confluent-kafka-dotnet/pull/1169)
                 var g = admin.ListGroup("testgroup", TimeSpan.FromSeconds(1));
                 if (g != null && g.Members?.Count > 0)
+                {
                     Console.WriteLine($"group: {g.Group} - {string.Join(",", g.Members?.Select(m => m.MemberId))}");
+                    break;
+                }
+
+                await Task.Delay(2_000);
             }
         }
     }

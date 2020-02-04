@@ -49,9 +49,7 @@ namespace A6k.Kafka.Messages
 
             public class PartitionResponse
             {
-                public PartitionResponse(
-                    int partitionId,
-                    short errorCode)
+                public PartitionResponse(int partitionId, short errorCode)
                 {
                     PartitionId = partitionId;
                     ErrorCode = (ResponseError)errorCode;

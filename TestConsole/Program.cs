@@ -15,6 +15,8 @@ namespace TestConsole
 
     class Program
     {
+        private const string TopicName = "test-topic";
+
         static async Task Main(string[] args)
         {
             //var kafka = await GetKafka();
@@ -35,9 +37,9 @@ namespace TestConsole
 
             //await BrokerMgr();
 
-            //await Consumer();
+            await Consumer();
 
-            await ConsumerGroup();
+            //await ConsumerGroup();
 
             Console.WriteLine("done...");
             Console.ReadLine();
@@ -60,7 +62,7 @@ namespace TestConsole
         {
             var mdMgr = GetMetadataManager();
             await mdMgr.Connect("a6k", "localhost:29092");
-            var coordinator = new ClientGroupCoordinator(mdMgr, "testgroup", "test-topic");
+            var coordinator = new ClientGroupCoordinator(mdMgr, "testgroup", TopicName);
 
             await coordinator.FindCoordinator();
             Console.WriteLine($"coordinator: {coordinator.CoordinatorId}");
@@ -83,7 +85,7 @@ namespace TestConsole
         {
             var mdMgr = GetMetadataManager();
             var consumer = new Consumer<string, string>(mdMgr, "fred", "localhost:29092");
-            await consumer.Subscribe("test-topic");
+            await consumer.Subscribe(TopicName);
 
             var start = DateTime.UtcNow;
             while ((DateTime.UtcNow - start).TotalSeconds < 20)
@@ -138,7 +140,7 @@ namespace TestConsole
             return new KafkaConnection(connection, "fred");
         }
 
-        private static async Task Fetch(KafkaConnection kafka, string topicName = "test-topic", int partitionId = 0, int offset = 0)
+        private static async Task Fetch(KafkaConnection kafka, string topicName = TopicName, int partitionId = 0, int offset = 0)
         {
             Console.WriteLine($"----- Fetch: topic:{topicName} p:{partitionId} o:{offset}");
 
@@ -244,7 +246,7 @@ namespace TestConsole
             };
             Console.WriteLine(msg.Value);
 
-            var response = await kafka.Produce("test-topic", msg, IntrinsicWriter.String, IntrinsicWriter.String);
+            var response = await kafka.Produce(TopicName, msg, IntrinsicWriter.String, IntrinsicWriter.String);
             Console.WriteLine($"throttle: {response.ThrottleTime}");
             foreach (var r in response.Responses)
             {
@@ -277,6 +279,63 @@ namespace TestConsole
                 Console.WriteLine($"  {t.TopicName} (Internal={t.IsInternal})");
                 Console.WriteLine($"    " + string.Join(", ", t.Partitions.Select(p => $"{ p.PartitionId}(l:{p.Leader} r:{(string.Join(",", p.Replicas))} isr:{(string.Join(",", p.Isr))})")));
             }
+        }
+    }
+
+    public class Producer<TKey, TValue>
+    {
+        private readonly string topic;
+        private readonly MetadataManager cluster;
+
+        private IPartitioner partitioner = new DefaultPartitioner();
+        private ISerializer<TKey> keySerializer;
+        private ISerializer<TValue> valueSerializer;
+
+        public Producer(string topic, MetadataManager cluster, ISerializer<TKey> keySerializer = null, ISerializer<TValue> valueSerializer = null)
+        {
+            this.topic = topic;
+            this.cluster = cluster;
+
+            if (keySerializer == null && !IntrinsicWriter.TryGetSerializer(out keySerializer))
+                throw new ArgumentException($"{nameof(keySerializer)} not provided or discoverable");
+            else
+                this.keySerializer = keySerializer;
+
+            if (valueSerializer == null && !IntrinsicWriter.TryGetSerializer(out valueSerializer))
+                throw new ArgumentException($"{nameof(valueSerializer)} not provided or discoverable");
+            else
+                this.valueSerializer = valueSerializer;
+        }
+
+        public async ValueTask Produce(Message<TKey, TValue> message)
+        {
+            var record = GetRecord(message);
+            var t = await cluster.GetTopic(topic);
+            if (message.PartitionId.HasValue)
+                record.PartitionId = message.PartitionId.Value;
+            else
+            {
+                if (t.Partitions.Count == 0)
+                    record.PartitionId = 0;
+                else
+                    record.PartitionId = await partitioner.GetPartition(topic, record.Key, cluster);
+            }
+
+            var partitionLeader = t.Partitions[record.PartitionId].Leader;
+            var b = cluster.GetBroker(partitionLeader);
+
+            await b.Connection.Produce(topic, record);
+        }
+
+        private ProducerRecord GetRecord(Message<TKey, TValue> message)
+        {
+            var record = new ProducerRecord
+            {
+                Topic = topic,
+                Key = keySerializer.WriteMessage(message.Key, )
+            };
+
+            return record;
         }
     }
 }

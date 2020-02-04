@@ -10,14 +10,15 @@ namespace A6k.Kafka
 
         public DateTime Timestamp { get; set; }
         public string Topic { get; set; }
-        public int PartitionId { get; set; }
+        public int? PartitionId { get; set; }
         public long Offset { get; set; }
 
         public TKey Key { get; set; }
 
         public TValue Value { get; set; }
 
-        public int HeadersLength
+        public bool HasHeaders => headers != null;
+        public int HeadersCount
         {
             get
             {
@@ -74,7 +75,7 @@ namespace A6k.Kafka
                 action(h.KeyValue);
         }
 
-        private partial class KeyValueListNode
+        private class KeyValueListNode
         {
             public KeyValuePair<string, byte[]> KeyValue;
             public KeyValueListNode Next;
