@@ -14,8 +14,10 @@ namespace A6k.Kafka
     /// Instance members are not thread-safe.
     /// </remarks>
     [DebuggerDisplay("{" + nameof(DebuggerDisplay) + ",nq}")]
-    public class MemoryBufferWriter : IBufferWriter<byte>, IDisposable
+    public class MemoryBufferWriter_ : IBufferWriter<byte>, IDisposable
     {
+        //public static BufferWriter<MemoryBufferWriter> CreateWriter() => new BufferWriter<MemoryBufferWriter>(new MemoryBufferWriter());
+
         private const int DefaultBufferSize = 4 * 1024;
 
         private readonly Stack<SequenceSegment> segmentPool = new Stack<SequenceSegment>();
@@ -30,7 +32,7 @@ namespace A6k.Kafka
         /// Initializes a new instance of the <see cref="Sequence"/> class.
         /// </summary>
         /// <param name="memoryPool">The pool to use for recycling backing arrays.</param>
-        public MemoryBufferWriter(MemoryPool<byte> memoryPool = null)
+        public MemoryBufferWriter_(MemoryPool<byte> memoryPool = null)
         {
             this.memoryPool = memoryPool ?? MemoryPool<byte>.Shared;
         }
@@ -64,7 +66,7 @@ namespace A6k.Kafka
         /// Expresses this sequence as a <see cref="ReadOnlySequence{T}"/>.
         /// </summary>
         /// <param name="sequence">The sequence to convert.</param>
-        public static implicit operator ReadOnlySequence<byte>(MemoryBufferWriter sequence)
+        public static implicit operator ReadOnlySequence<byte>(MemoryBufferWriter_ sequence)
         {
             return sequence.first != null
                 ? new ReadOnlySequence<byte>(sequence.first, sequence.first.Start, sequence.last, sequence.last.End)
@@ -158,7 +160,7 @@ namespace A6k.Kafka
         /// </summary>
         /// <param name="sizeHint">The size of the memory required, or 0 to just get a convenient (non-empty) buffer.</param>
         /// <returns>The requested memory.</returns>
-        public Span<byte> GetSpan(int sizeHint) => GetMemory(sizeHint).Span;
+        public Span<byte> GetSpan(int sizeHint = 0) => GetMemory(sizeHint).Span;
 
         /// <summary>
         /// Clears the entire sequence, recycles associated memory into pools,
