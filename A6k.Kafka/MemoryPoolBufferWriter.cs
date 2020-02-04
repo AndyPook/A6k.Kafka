@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Buffers;
 using System.Diagnostics;
+using System.Runtime.CompilerServices;
 
 #nullable enable
 
@@ -93,13 +94,6 @@ namespace A6k.Kafka
                 output.Write(segment.Span);
         }
 
-        public ReadOnlySequence<byte> GetReadOnlySequence()
-        {
-            if (head is null || current is null)
-                return ReadOnlySequence<byte>.Empty;
-
-            return new ReadOnlySequence<byte>(head, 0, current, current.Length);
-        }
         public ReadOnlySequence<byte> AsReadOnlySequence
         {
             get

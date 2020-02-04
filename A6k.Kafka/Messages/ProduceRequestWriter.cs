@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Buffers;
 using Bedrock.Framework.Protocols;
 
@@ -85,10 +85,10 @@ namespace A6k.Kafka.Messages
 
             WriteRecord(message, buffer);
 
-            output.WriteInt(12 + 4 + 1 + 4 + (int)buffer.Length); // size of records + "header" bytes (not documented)
+            output.WriteInt(12 + 4 + 1 + 4 + buffer.Length); // size of records + "header" bytes (not documented)
 
             output.WriteLong(0); // baseOffset: int64
-            output.WriteInt(4 + 1 + 4 + (int)buffer.Length); // batchLength: int32
+            output.WriteInt(4 + 1 + 4 + buffer.Length); // batchLength: int32
             output.WriteInt(0);  // partitionLeaderEpoch: int32
             output.WriteByte(2); // magic: int8(current magic value is 2)
 
