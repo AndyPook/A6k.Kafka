@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
@@ -14,8 +14,8 @@ namespace A6k.Kafka
         private readonly string clientId;
         private readonly string bootstrapServers;
 
-        private IDeserializer<TKey> keyDeserializer;
-        private IDeserializer<TValue> valueDeserializer;
+        private readonly IDeserializer<TKey> keyDeserializer;
+        private readonly IDeserializer<TValue> valueDeserializer;
 
         private TopicMetadata topicMetadata;
 

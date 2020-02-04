@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Buffers;
 using Bedrock.Framework.Protocols;
 
@@ -7,14 +7,14 @@ namespace A6k.Kafka.Messages
     public class ProduceRequestWriter<TKey, TValue> : IMessageWriter<Message<TKey, TValue>>
     {
         private string topic;
-        private ISerializer<TKey> keyWriter;
-        private ISerializer<TValue> valueWriter;
+        private ISerializer<TKey> keySerializer;
+        private ISerializer<TValue> valueSerializer;
 
-        public ProduceRequestWriter(string topic, ISerializer<TKey> keyWriter, ISerializer<TValue> valueWriter)
+        public ProduceRequestWriter(string topic, ISerializer<TKey> keySerializer, ISerializer<TValue> valueSerializer)
         {
             this.topic = topic;
-            this.keyWriter = keyWriter;
-            this.valueWriter = valueWriter;
+            this.keySerializer = keySerializer;
+            this.valueSerializer = valueSerializer;
         }
 
         public void WriteMessage(Message<TKey, TValue> message, IBufferWriter<byte> output)
@@ -124,8 +124,8 @@ namespace A6k.Kafka.Messages
             buffer.WriteVarInt((uint)0); // timestampDelta: varint
             buffer.WriteVarInt((uint)0); // offsetDelta: varint
 
-            buffer.WritePrefixed(keyWriter, message.Key, BufferWriterExtensions.PrefixType.VarInt);
-            buffer.WritePrefixed(valueWriter, message.Value, BufferWriterExtensions.PrefixType.VarInt);
+            buffer.WritePrefixed(keySerializer, message.Key, BufferWriterExtensions.PrefixType.VarInt);
+            buffer.WritePrefixed(valueSerializer, message.Value, BufferWriterExtensions.PrefixType.VarInt);
 
             // headers
             buffer.WriteVarInt((ulong)message.HeadersCount);
