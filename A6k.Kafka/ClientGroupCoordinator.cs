@@ -1,11 +1,27 @@
 ﻿using System;
 using System.Buffers;
+using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using A6k.Kafka.Messages;
 using Bedrock.Framework.Protocols;
 
 namespace A6k.Kafka
 {
+    public class GroupMember
+    {
+        public GroupMember(string memberId, string groupInstanceId, byte[] metadata)
+        {
+            MemberId = memberId;
+            GroupInstanceId = groupInstanceId;
+            Metadata = metadata;
+        }
+
+        public string MemberId { get; }
+        public string GroupInstanceId { get; }
+        public byte[] Metadata { get; }
+    }
+
     public class ClientGroupCoordinator
     {
         public enum State
@@ -18,7 +34,8 @@ namespace A6k.Kafka
 
         private readonly MetadataManager metadataManager;
         private readonly string groupId;
-        private readonly byte[] groupMetadata;
+        private readonly ConsumerGroupMetadata groupMetadata;
+        private readonly byte[] groupMetadataBytes;
 
         private bool heartbeatRunning = false;
         private int coordinatorBrokerId = 0;
@@ -32,7 +49,8 @@ namespace A6k.Kafka
             this.metadataManager = metadataManager;
             this.groupId = groupId;
 
-            groupMetadata = WriteConsumerGroupMetadata(0, topics);
+            groupMetadata = new ConsumerGroupMetadata(0, topics);
+            groupMetadataBytes = groupMetadata.ToArray();
         }
 
         public State CurrentState => state;
@@ -41,6 +59,7 @@ namespace A6k.Kafka
         public string LeaderId => leaderId;
 
         public bool IsLeader => string.Equals(leaderId, memberId);
+        public IReadOnlyList<GroupMember> Members { get; private set; } = Array.Empty<GroupMember>();
 
         public async Task FindCoordinator()
         {
@@ -77,8 +96,8 @@ namespace A6k.Kafka
                     RebalanceTimeout = 300_000,
                     Protocols = new JoinGroupRequest.Protocol[]
                     {
-                        new JoinGroupRequest.Protocol{ Name = "range", Metadata = groupMetadata },
-                        new JoinGroupRequest.Protocol{ Name = "roundrobin", Metadata = groupMetadata }
+                        new JoinGroupRequest.Protocol{ Name = "range", Metadata = groupMetadataBytes },
+                        new JoinGroupRequest.Protocol{ Name = "roundrobin", Metadata = groupMetadataBytes }
                     }
                 });
                 Console.WriteLine("JoinGroup: " + response.ErrorCode);
@@ -99,6 +118,11 @@ namespace A6k.Kafka
                         await Task.Delay(1_000);
                         break;
                 }
+
+                if (joined && IsLeader)
+                    Members = response.Members.Select(m => new GroupMember(m.MemberId, m.GroupInstanceId, m.Metadata)).ToArray();
+                else
+                    Members = Array.Empty<GroupMember>();
             }
         }
 
@@ -119,10 +143,11 @@ namespace A6k.Kafka
                 Console.WriteLine("leader but not assignments");
             }
 
-            Members = ParseMemberState(new ReadOnlySequence<byte>(response.Assignment));
+            CurrentMemberState = new MemberState(new ReadOnlySequence<byte>(response.Assignment));
+            CurrentMemberState = new MemberState(response.Assignment);
         }
 
-        public MemberState Members { get; private set; }
+        public MemberState CurrentMemberState { get; private set; }
 
         private async Task SendHeartbeats()
         {
@@ -194,53 +219,103 @@ namespace A6k.Kafka
 
         public class ConsumerGroupMetadata
         {
+
+            public ConsumerGroupMetadata(in ReadOnlySequence<byte> input)
+            {
+                var reader = new SequenceReader<byte>(input);
+                if (
+                    !reader.TryReadShort(out var version) ||
+                    !reader.TryReadArrayOfString(out var topics) ||
+                    !reader.TryReadBytes(out var userdata)
+                )
+                    throw new InvalidOperationException("BadFormat: ConsumerGroupMetadata");
+
+                Version = version;
+                Topics = topics;
+                UserData = userdata.ToArray();
+            }
+
+            public ConsumerGroupMetadata(short version, string[] topics, byte[] userData = null)
+            {
+                Version = version;
+                Topics = topics;
+                UserData = userData;
+            }
+
             public short Version { get; set; }
 
             public string[] Topics { get; set; }
             public byte[] UserData { get; set; }
-        }
 
-        private ConsumerGroupMetadata ParseConsumerGroupMetadata(in ReadOnlySequence<byte> input)
-        {
-            var reader = new SequenceReader<byte>(input);
-            if (
-                !reader.TryReadShort(out var version) ||
-                !reader.TryReadArrayOfString(out var topics) ||
-                !reader.TryReadBytes(out var userdata)
-            )
-                throw new InvalidOperationException("BadFormat: ConsumerGroupMetadata");
-
-            return new ConsumerGroupMetadata
+            public void CopyTo(IBufferWriter<byte> output)
             {
-                Version = version,
-                Topics = topics,
-                UserData = userdata.ToArray()
-            };
-        }
+                output.WriteShort(Version);
+                output.WriteArray(Topics);
+                output.WriteBytes(UserData);
+            }
 
-        private byte[] WriteConsumerGroupMetadata(short version, params string[] topics)
-        {
-            using var buffer = new MemoryBufferWriter();
-
-            buffer.WriteShort(version);
-            buffer.WriteArray(topics);
-            buffer.WriteInt(0); // no userdata
-
-            return buffer.AsReadOnlySequence.ToArray();
+            public byte[] ToArray()
+            {
+                var buffer = new MemoryBufferWriter();
+                CopyTo(buffer);
+                return buffer.ToArray();
+            }
         }
 
         public class MemberState
         {
-            public MemberState(short version, TopicPartition[] assignments, byte[] userData)
+            public MemberState(short version, IReadOnlyList<TopicPartition> assignments, byte[] userData)
             {
                 Version = version;
                 Assignments = assignments;
                 UserData = userData;
             }
 
+            public MemberState(in ReadOnlyMemory<byte> input) : this(new SequenceReader<byte>(new ReadOnlySequence<byte>(input))) { }
+            public MemberState(in ReadOnlySequence<byte> input) : this(new SequenceReader<byte>(input)) { }
+            public MemberState(SequenceReader<byte> reader)
+            {
+                if (
+                    !reader.TryReadShort(out var version) ||
+                    !reader.TryReadArray<TopicPartition>(TryParseAssignment, out var topics) ||
+                    !reader.TryReadBytes(out var userdata)
+                )
+                    throw new InvalidOperationException("BadFormat: ConsumerGroupMetadata");
+
+                Version = version;
+                Assignments = topics;
+                UserData = userdata.ToArray();
+
+                bool TryParseAssignment(ref SequenceReader<byte> reader, out TopicPartition member)
+                {
+                    member = default;
+                    if (
+                        !reader.TryReadString(out var topic) ||
+                        !reader.TryReadArrayOfInt(out var partitions)
+                    )
+                        return false;
+
+                    member = new TopicPartition(topic, partitions);
+                    return true;
+                }
+            }
+
             public short Version { get; }
-            public TopicPartition[] Assignments { get; }
+            public IReadOnlyList<TopicPartition> Assignments { get; }
             public byte[] UserData { get; }
+
+            public void CopyTo(IBufferWriter<byte> buffer)
+            {
+                buffer.WriteShort(Version);
+                buffer.WriteArray(Assignments, WriteAssignment);
+                buffer.WriteBytes(UserData);
+
+                void WriteAssignment(TopicPartition message, IBufferWriter<byte> output)
+                {
+                    output.WriteString(message.Topic);
+                    output.WriteArray(message.Partitions);
+                }
+            }
 
             public class TopicPartition
             {
@@ -253,43 +328,6 @@ namespace A6k.Kafka
                 public string Topic { get; }
                 public int[] Partitions { get; }
             }
-        }
-
-        private MemberState ParseMemberState(in ReadOnlySequence<byte> input)
-        {
-            var reader = new SequenceReader<byte>(input);
-            if (
-                !reader.TryReadShort(out var version) ||
-                !reader.TryReadArray<MemberState.TopicPartition>(TryParseAssignment, out var topics) ||
-                !reader.TryReadBytes(out var userdata)
-            )
-                throw new InvalidOperationException("BadFormat: ConsumerGroupMetadata");
-
-            return new MemberState(version, topics, userdata.ToArray());
-
-            bool TryParseAssignment(ref SequenceReader<byte> reader, out MemberState.TopicPartition member)
-            {
-                member = default;
-                if (
-                    !reader.TryReadString(out var topic) ||
-                    !reader.TryReadArrayOfInt(out var partitions)
-                )
-                    return false;
-
-                member = new MemberState.TopicPartition(topic, partitions);
-                return true;
-            }
-        }
-
-        private byte[] WriteConsumerMemberState(short version, params string[] topics)
-        {
-            using var buffer = new MemoryBufferWriter();
-
-            buffer.WriteShort(version);
-            buffer.WriteArray(topics, (t, o) => o.WriteString(t));
-            buffer.WriteInt(0); // no userdata
-
-            return buffer.AsReadOnlySequence.ToArray();
         }
     }
 }

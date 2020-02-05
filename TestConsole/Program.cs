@@ -71,7 +71,7 @@ namespace TestConsole
             var response = await producer.Produce("fred", Guid.NewGuid().ToString());
 
             Console.WriteLine($"throttle: {response.ThrottleTime}");
-            foreach (var r in response.Responses)
+            foreach (var r in response.Topics)
             {
                 Console.WriteLine($"topic: {r.Topic}");
                 foreach (var p in r.Partitions)
@@ -92,12 +92,14 @@ namespace TestConsole
             await coordinator.JoinGroup();
             Console.WriteLine($"memberid: {coordinator.MemberId}");
 
+
+
             while (true)
             {
                 await Task.Delay(1000);
                 await coordinator.SyncGroup();
-                Console.WriteLine("group version: " + coordinator.Members.Version);
-                foreach (var a in coordinator.Members.Assignments)
+                Console.WriteLine("group version: " + coordinator.CurrentMemberState.Version);
+                foreach (var a in coordinator.CurrentMemberState.Assignments)
                     Console.WriteLine($"{a.Topic}: {string.Join(",", a.Partitions)}");
             }
         }
@@ -270,7 +272,7 @@ namespace TestConsole
 
             var response = await kafka.Produce(msg, IntrinsicSerializers.String, IntrinsicSerializers.String);
             Console.WriteLine($"throttle: {response.ThrottleTime}");
-            foreach (var r in response.Responses)
+            foreach (var r in response.Topics)
             {
                 Console.WriteLine($"topic: {r.Topic}");
                 foreach (var p in r.Partitions)
