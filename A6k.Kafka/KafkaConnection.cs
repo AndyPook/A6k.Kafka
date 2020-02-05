@@ -142,6 +142,7 @@ namespace A6k.Kafka
                         throw new InvalidOperationException("no outstanding op for correlationId: " + header.CorrelationId);
 
                     await op.ParseResponse(reader);
+                    op.Dispose();
                 }
                 catch (Exception)
                 {
@@ -162,7 +163,7 @@ namespace A6k.Kafka
             return connection.DisposeAsync();
         }
 
-        private abstract class Op
+        private abstract class Op : IDisposable
         {
             public int CorrelationId { get; set; }
             public short ApiKey { get; set; }
@@ -170,6 +171,8 @@ namespace A6k.Kafka
 
             public abstract void WriteMessage(IBufferWriter<byte> output);
             public abstract ValueTask ParseResponse(ProtocolReader reader);
+
+            public abstract void Dispose();
         }
 
         private class Op<TRequest, TResponse> : Op, IValueTaskSource<TResponse>
@@ -196,6 +199,8 @@ namespace A6k.Kafka
             ValueTaskSourceStatus IValueTaskSource<TResponse>.GetStatus(short token) => vts.GetStatus(token);
             void IValueTaskSource<TResponse>.OnCompleted(Action<object> continuation, object state, short token, ValueTaskSourceOnCompletedFlags flags)
                 => vts.OnCompleted(continuation, state, token, flags);
+
+            public override void Dispose() => (Request as IDisposable)?.Dispose();
         }
     }
 }

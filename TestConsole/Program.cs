@@ -15,7 +15,9 @@ namespace TestConsole
 
     class Program
     {
+        private const string BootstrapServers = "localhost:29092";
         private const string TopicName = "test-topic";
+        //private const string TopicName = "partitioned-topic";
 
         static async Task Main(string[] args)
         {
@@ -37,7 +39,9 @@ namespace TestConsole
 
             //await BrokerMgr();
 
-            await Consumer();
+            await Producer();
+
+            //await Consumer();
 
             //await ConsumerGroup();
 
@@ -49,7 +53,7 @@ namespace TestConsole
         {
             var mdMgr = GetMetadataManager();
 
-            await mdMgr.Connect("fred", "localhost:29092");
+            await mdMgr.Connect("fred", BootstrapServers);
 
             foreach (var b in mdMgr.Brokers)
             {
@@ -58,10 +62,28 @@ namespace TestConsole
             }
         }
 
+        private static async Task Producer()
+        {
+            var mdMgr = GetMetadataManager();
+            await mdMgr.Connect("fred-producer", BootstrapServers);
+            var producer = new Producer<string, string>(TopicName, mdMgr);
+
+            var response = await producer.Produce("fred", Guid.NewGuid().ToString());
+
+            Console.WriteLine($"throttle: {response.ThrottleTime}");
+            foreach (var r in response.Responses)
+            {
+                Console.WriteLine($"topic: {r.Topic}");
+                foreach (var p in r.Partitions)
+                    Console.WriteLine($"    {p.Partition} (error: {p.ErrorCode.ToString()}) - {p.BaseOffset} {p.LogStartOffset} {Timestamp.UnixTimestampMsToDateTime(p.LogAppendTime)}");
+            }
+        }
+
+
         private static async Task ConsumerGroup()
         {
             var mdMgr = GetMetadataManager();
-            await mdMgr.Connect("a6k", "localhost:29092");
+            await mdMgr.Connect("a6k", BootstrapServers);
             var coordinator = new ClientGroupCoordinator(mdMgr, "testgroup", TopicName);
 
             await coordinator.FindCoordinator();
@@ -80,11 +102,10 @@ namespace TestConsole
             }
         }
 
-
         private static async Task Consumer()
         {
             var mdMgr = GetMetadataManager();
-            var consumer = new Consumer<string, string>(mdMgr, "fred", "localhost:29092");
+            var consumer = new Consumer<string, string>(mdMgr, "fred", BootstrapServers);
             await consumer.Subscribe(TopicName);
 
             var start = DateTime.UtcNow;
@@ -241,18 +262,19 @@ namespace TestConsole
 
             var msg = new Message<string, string>
             {
+                Topic = TopicName,
                 Key = "fred",
                 Value = "flintstone " + Guid.NewGuid().ToString()
             };
             Console.WriteLine(msg.Value);
 
-            var response = await kafka.Produce(TopicName, msg, IntrinsicWriter.String, IntrinsicWriter.String);
+            var response = await kafka.Produce(msg, IntrinsicWriter.String, IntrinsicWriter.String);
             Console.WriteLine($"throttle: {response.ThrottleTime}");
             foreach (var r in response.Responses)
             {
                 Console.WriteLine($"topic: {r.Topic}");
                 foreach (var p in r.Partitions)
-                    Console.WriteLine($"    {p.Partition} (error@ {p.ErrorCode}) - {p.BaseOffset} {p.LogStartOffset} {Timestamp.UnixTimestampMsToDateTime(p.LogAppendTime)}");
+                    Console.WriteLine($"    {p.Partition} (error: {p.ErrorCode.ToString()}) - {p.BaseOffset} {p.LogStartOffset} {Timestamp.UnixTimestampMsToDateTime(p.LogAppendTime)}");
             }
         }
 

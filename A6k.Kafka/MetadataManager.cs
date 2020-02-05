@@ -23,6 +23,7 @@ namespace A6k.Kafka
         {
             this.kafkaConnectionFactory = kafkaConnectionFactory ?? throw new ArgumentNullException(nameof(kafkaConnectionFactory));
             this.logger = logger ?? throw new ArgumentNullException(nameof(logger));
+            this.topics = new TopicMetadataCache(this);
         }
 
         public string ClusterId { get; private set; }
@@ -67,8 +68,6 @@ namespace A6k.Kafka
 
             foreach (var broker in brokers.Values)
                 await broker.Start(clientId);
-
-            topics = new TopicMetadataCache(this);
         }
 
         public async Task Disconnect()

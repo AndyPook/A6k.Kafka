@@ -29,7 +29,7 @@ namespace A6k.Kafka.Messages
                 public PartitionResponse(int partition, short errorCode, short baseOffset, long logAppendTime, long logStartOffset) //, RecordError[] recordErrors)
                 {
                     Partition = partition;
-                    ErrorCode = errorCode;
+                    ErrorCode = (ResponseError)errorCode;
                     BaseOffset = baseOffset;
                     LogAppendTime = logAppendTime;
                     LogStartOffset = logStartOffset;
@@ -37,7 +37,7 @@ namespace A6k.Kafka.Messages
                 }
 
                 public int Partition { get; }
-                public short ErrorCode { get; }
+                public ResponseError ErrorCode { get; }
                 public short BaseOffset { get; }
                 public long LogAppendTime { get; }
                 public long LogStartOffset { get; }

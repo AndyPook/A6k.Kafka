@@ -6,13 +6,11 @@ namespace A6k.Kafka.Messages
 {
     public class ProduceRequestWriter<TKey, TValue> : IMessageWriter<Message<TKey, TValue>>
     {
-        private string topic;
         private ISerializer<TKey> keySerializer;
         private ISerializer<TValue> valueSerializer;
 
-        public ProduceRequestWriter(string topic, ISerializer<TKey> keySerializer, ISerializer<TValue> valueSerializer)
+        public ProduceRequestWriter(ISerializer<TKey> keySerializer, ISerializer<TValue> valueSerializer)
         {
-            this.topic = topic;
             this.keySerializer = keySerializer;
             this.valueSerializer = valueSerializer;
         }
@@ -29,11 +27,11 @@ namespace A6k.Kafka.Messages
             //      partition => INT32
             //      record_set => RECORDS
 
-            output.WriteNullableString(null); // transactional_id => NULLABLE_STRING
-            output.WriteShort(-1);            // acks => INT16
-            output.WriteInt(5000);            // timeout => INT32
-            output.WriteInt(1);            // ???
-            output.WriteString(topic);        // topic => STRING
+            output.WriteNullableString(null);  // transactional_id => NULLABLE_STRING
+            output.WriteShort(-1);             // acks => INT16
+            output.WriteInt(5000);             // timeout => INT32
+            output.WriteInt(1);                // ???
+            output.WriteString(message.Topic); // topic => STRING
 
             output.WriteInt(1); // only one message
             output.WriteInt(0); // partitionId

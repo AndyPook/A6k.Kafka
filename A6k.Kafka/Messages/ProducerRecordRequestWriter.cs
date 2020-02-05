@@ -4,91 +4,8 @@ using Bedrock.Framework.Protocols;
 
 namespace A6k.Kafka.Messages
 {
-    public class ProducerRecord : IDisposable
-    {
-        public string Topic { get; set; }
-        public int? PartitionId { get; set; }
-
-        public ReadOnlySequence<byte> KeyBytes { get; private set; }
-
-        public static ProducerRecord Create<TKey, TValue>(Message<TKey, TValue> message, ISerializer<TKey> keySerializer, ISerializer<TValue> valueSerializer)
-        {
-            // Record...
-            // length: varint
-            // attributes: int8
-            //     bit 0~7: unused
-            // timestampDelta: varint
-            // offsetDelta: varint
-            // keyLength: varint
-            // key: byte[]
-            // valueLen: varint
-            // value: byte[]
-            // Headers => [Header]
-
-            // Header...
-            // headerKeyLength: varint
-            // headerKey: String
-            // headerValueLength: varint
-            // Value: byte[]
-
-            var record = new ProducerRecord
-            {
-                Topic = message.Topic,
-                PartitionId = message.PartitionId
-            };
-
-            var buffer = record.buffer;
-
-            buffer.WriteByte(0);         // attributes: int8 - bit 0~7: unused
-            buffer.WriteVarInt((uint)0); // timestampDelta: varint
-            buffer.WriteVarInt((uint)0); // offsetDelta: varint
-
-            record.KeyBytes = WritePrefixed(buffer, keySerializer, message.Key);
-            WritePrefixed(buffer, valueSerializer, message.Value);
-
-            // headers
-            buffer.WriteVarInt((ulong)message.HeadersCount);
-            message.ForEachHeader(h =>
-            {
-                buffer.WriteCompactString(h.Key);
-                buffer.WritePrefixed(h.Value.AsSpan(), BufferWriterExtensions.PrefixType.VarInt);
-            });
-
-            return record;
-
-            ReadOnlySequence<byte> WritePrefixed<T>(IBufferWriter<byte> output, ISerializer<T> serializer, T item)
-            {
-                using var buffer = new MemoryBufferWriter();
-                serializer.WriteMessage(item, buffer);
-                output.WriteVarInt(buffer.Length);
-
-                buffer.CopyTo(output);
-                return buffer.AsReadOnlySequence;
-            }
-        }
-
-        private MemoryBufferWriter buffer = new MemoryBufferWriter();
-
-        public int Length => buffer.Length;
-
-        public void CopyTo(IBufferWriter<byte> output)
-        {
-            output.WriteVarInt(buffer.Length);
-            buffer.CopyTo(output);
-        }
-
-        public void Dispose() => buffer.Dispose();
-    }
-
     public class ProducerRecordRequestWriter : IMessageWriter<ProducerRecord>
     {
-        private string topic;
-
-        public ProducerRecordRequestWriter(string topic)
-        {
-            this.topic = topic;
-        }
-
         public void WriteMessage(ProducerRecord message, IBufferWriter<byte> output)
         {
             //Produce Request(Version: 7) => transactional_id acks timeout[topic_data]
@@ -101,11 +18,11 @@ namespace A6k.Kafka.Messages
             //      partition => INT32
             //      record_set => RECORDS
 
-            output.WriteNullableString(null); // transactional_id => NULLABLE_STRING
-            output.WriteShort(-1);            // acks => INT16
-            output.WriteInt(5000);            // timeout => INT32
-            output.WriteInt(1);            // ???
-            output.WriteString(topic);        // topic => STRING
+            output.WriteNullableString(null);  // transactional_id => NULLABLE_STRING
+            output.WriteShort(-1);             // acks => INT16
+            output.WriteInt(5000);             // timeout => INT32
+            output.WriteInt(1);                // ???
+            output.WriteString(message.Topic); // topic => STRING
 
             output.WriteInt(1); // only one message
             output.WriteInt(0); // partitionId
@@ -155,24 +72,18 @@ namespace A6k.Kafka.Messages
 
             buffer.WriteInt(1); // one record in the batch
 
-            WriteRecord(message, buffer);
+            message.WriteTo(buffer);
 
-            output.WriteInt(12 + 4 + 1 + 4 + (int)buffer.Length); // size of records + "header" bytes (not documented)
+            output.WriteInt(12 + 4 + 1 + 4 + buffer.Length); // size of records + "header" bytes (not documented)
 
             output.WriteLong(0); // baseOffset: int64
-            output.WriteInt(4 + 1 + 4 + (int)buffer.Length); // batchLength: int32
+            output.WriteInt(4 + 1 + 4 + buffer.Length); // batchLength: int32
             output.WriteInt(0);  // partitionLeaderEpoch: int32
             output.WriteByte(2); // magic: int8(current magic value is 2)
 
             var crc = Hash.Crc32C.Compute(buffer);
             output.WriteUInt(crc);  // crc: int32
             buffer.CopyTo(output);
-        }
-
-        public void WriteRecord(ProducerRecord record, IBufferWriter<byte> output)
-        {
-            output.WriteVarInt(record.Length);
-            record.CopyTo(output);
         }
     }
 }

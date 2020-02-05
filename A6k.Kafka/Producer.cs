@@ -4,6 +4,20 @@ using A6k.Kafka.Messages;
 
 namespace A6k.Kafka
 {
+    public static class ProducerExtensions
+    {
+        public static ValueTask<ProduceResponse> Produce<TKey, TValue>(this Producer<TKey,TValue> producer, TKey key, TValue value)
+        {
+            var message = new Message<TKey, TValue>
+            {
+                Key = key,
+                Value = value
+            };
+
+            return producer.Produce(message);
+        }
+    }
+
     public class Producer<TKey, TValue>
     {
         private readonly string topic;
@@ -29,19 +43,20 @@ namespace A6k.Kafka
                 this.valueSerializer = valueSerializer;
         }
 
-        public async ValueTask Produce(Message<TKey, TValue> message)
+        public async ValueTask<ProduceResponse> Produce(Message<TKey, TValue> message)
         {
             var record = ProducerRecord.Create(message, keySerializer, valueSerializer);
+            record.Topic = topic;
 
-            var t = await cluster.GetTopic(topic);
+            var t = await cluster.GetTopic(record.Topic);
             if (message.PartitionId.HasValue)
                 record.PartitionId = message.PartitionId.Value;
             else
             {
-                if (t.Partitions.Count == 0)
+                if (t.Partitions.Count == 1)
                     record.PartitionId = 0;
                 else
-                    record.PartitionId = await partitioner.GetPartition(topic, record.KeyBytes, cluster);
+                    record.PartitionId = await partitioner.GetPartition(record.Topic, record.KeyBytes, cluster);
             }
 
             if (!record.PartitionId.HasValue)
@@ -50,8 +65,7 @@ namespace A6k.Kafka
             var partitionLeader = t.Partitions[record.PartitionId.Value].Leader;
             var b = cluster.GetBroker(partitionLeader);
 
-            var response = await b.Connection.Produce(topic, message, keySerializer, valueSerializer);
-            // do something with ErrorCode
+            return await b.Connection.Produce(record);
         }
     }
 }
