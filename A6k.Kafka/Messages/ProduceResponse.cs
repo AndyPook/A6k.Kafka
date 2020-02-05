@@ -4,18 +4,18 @@ namespace A6k.Kafka.Messages
 {
     public class ProduceResponse
     {
-        public ProduceResponse(Response[] responses, int throttleTime)
+        public ProduceResponse(TopicResponse[] topicResponses, int throttleTime)
         {
-            Responses = responses;
+            Topics = topicResponses;
             ThrottleTime = throttleTime;
         }
 
-        public Response[] Responses { get; }
+        public IReadOnlyList<TopicResponse> Topics { get; }
         public int ThrottleTime { get; }
 
-        public class Response
+        public class TopicResponse
         {
-            public Response(string topic, PartitionResponse[] partitions)
+            public TopicResponse(string topic, PartitionResponse[] partitions)
             {
                 Topic = topic;
                 Partitions = partitions;

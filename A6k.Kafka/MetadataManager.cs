@@ -126,20 +126,29 @@ namespace A6k.Kafka
                 // find or get the metadata for the topicName
                 return await memoryCache.GetOrCreateAsync(topicName, async entry =>
                 {
-                    var broker = metadataManager.GetRandomBroker();
-                    var md = await broker.Connection.Metadata(topicName);
                     entry.AbsoluteExpirationRelativeToNow = timeout;
-
-                    var tmd = md.Topics[0];
-                    var t = new TopicMetadata(
-                        tmd.TopicName, 
-                        tmd.IsInternal, 
-                        tmd.Partitions
-                            .Select(p => new PartitionMetadata(p.PartitionId, p.Leader, p.Replicas.ToArray(), p.Isr.ToArray()))
-                            .ToArray()
-                    );
-                    return t;
+                    return await GetTopicMetaData(topicName);
                 });
+            }
+
+            public async ValueTask<TopicMetadata> RefreshTopic(string topicName)
+            {
+                var topic = await GetTopicMetaData(topicName);
+                return memoryCache.Set(topicName, topic, timeout);
+            }
+
+            private async ValueTask<TopicMetadata> GetTopicMetaData(string topicName)
+            {
+                var broker = metadataManager.GetRandomBroker();
+                var topicResponse = await broker.Connection.Metadata(topicName);
+                var t = topicResponse.Topics[0];
+                return new TopicMetadata(
+                    t.TopicName,
+                    t.IsInternal,
+                    t.Partitions
+                        .Select(p => new PartitionMetadata(p.PartitionId, p.Leader, p.Replicas.ToArray(), p.Isr.ToArray()))
+                        .ToArray()
+                );
             }
 
             public async Task RefreshAllTopics()
@@ -147,9 +156,7 @@ namespace A6k.Kafka
                 var broker = metadataManager.GetRandomBroker();
                 var md = await broker.Connection.Metadata(string.Empty);
                 foreach (var topicMetadata in md.Topics)
-                {
                     memoryCache.Set(topicMetadata.TopicName, topicMetadata, timeout);
-                }
             }
         }
     }

@@ -8,7 +8,7 @@ namespace A6k.Kafka.Messages
         {
             message = default;
 
-            if (!reader.TryReadArray<ProduceResponse.Response>(TryParseResponse, out var responses))
+            if (!reader.TryReadArray<ProduceResponse.TopicResponse>(TryParseResponse, out var responses))
                 return false;
             if (!reader.TryReadInt(out var throttleTime))
                 return false;
@@ -17,19 +17,19 @@ namespace A6k.Kafka.Messages
             return true;
         }
 
-        private bool TryParseResponse(ref SequenceReader<byte> reader, out ProduceResponse.Response response)
+        private bool TryParseResponse(ref SequenceReader<byte> reader, out ProduceResponse.TopicResponse response)
         {
             response = default;
             if (!reader.TryReadString(out var topic))
                 return false;
-            if (!reader.TryReadArray<ProduceResponse.Response.PartitionResponse>(TryParsePartition, out var partitions))
+            if (!reader.TryReadArray<ProduceResponse.TopicResponse.PartitionResponse>(TryParsePartition, out var partitions))
                 return false;
 
-            response = new ProduceResponse.Response(topic, partitions);
+            response = new ProduceResponse.TopicResponse(topic, partitions);
             return true;
         }
 
-        private bool TryParsePartition(ref SequenceReader<byte> reader, out ProduceResponse.Response.PartitionResponse partition)
+        private bool TryParsePartition(ref SequenceReader<byte> reader, out ProduceResponse.TopicResponse.PartitionResponse partition)
         {
             partition = default;
             if (!reader.TryReadBigEndian(out int partitionId))
@@ -45,7 +45,7 @@ namespace A6k.Kafka.Messages
             //if (!reader.TryReadArray<ProduceResponse.PartitionResponse.RecordError>(TryParsePartitionError, out var errors))
             //    return false;
 
-            partition = new ProduceResponse.Response.PartitionResponse(partitionId, error, baseOffset, logAppendTime, logStartOffset); //, errors);
+            partition = new ProduceResponse.TopicResponse.PartitionResponse(partitionId, error, baseOffset, logAppendTime, logStartOffset); //, errors);
             return true;
         }
 

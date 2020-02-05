@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Buffers;
 using System.Buffers.Binary;
+using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using System.Text;
 using Bedrock.Framework.Protocols;
@@ -234,7 +235,7 @@ namespace A6k.Kafka
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void WriteArray<T>(this IBufferWriter<byte> output, T[] array, Action<T, IBufferWriter<byte>> writer)
+        public static void WriteArray<T>(this IBufferWriter<byte> output, IReadOnlyList<T> array, Action<T, IBufferWriter<byte>> writer)
         {
             if (array == null)
             {
@@ -242,8 +243,8 @@ namespace A6k.Kafka
                 return;
             }
 
-            output.WriteInt(array.Length);
-            for (int i = 0; i < array.Length; i++)
+            output.WriteInt(array.Count);
+            for (int i = 0; i < array.Count; i++)
                 writer(array[i], output);
         }
 

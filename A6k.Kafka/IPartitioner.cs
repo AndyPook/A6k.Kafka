@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Buffers;
 using System.Threading.Tasks;
+using A6k.Kafka.Metadata;
 
 namespace A6k.Kafka
 {
@@ -16,6 +17,6 @@ namespace A6k.Kafka
          * @param valueBytes The serialized value to partition on or null
          * @param cluster The current cluster metadata
          */
-        ValueTask<int> GetPartition(string topic, ReadOnlySequence<byte> keyBytes, MetadataManager cluster);
+        ValueTask<int> GetPartition(TopicMetadata topic, ReadOnlySequence<byte> keyBytes);
     }
 }
