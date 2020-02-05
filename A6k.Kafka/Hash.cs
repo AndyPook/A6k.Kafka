@@ -60,11 +60,113 @@ namespace A6k.Kafka
             {
                 if (input.IsSingleSegment)
                     return Compute(input.First.Span);
-                else
-                    // TODO: hash from sequence
-                    return Compute(input.ToArray());
+                //else
+                //    // TODO: hash from sequence
+                //    return Compute(input.ToArray());
+
+                var reader = new SequenceReader<byte>(input);
+
+                const uint seed = 0xc58f1a7a;
+
+                const uint m = 0x5bd1e995;
+                const int r = 24;
+
+                int length = (int)input.Length;
+                if (length == 0)
+                    return 0;
+                uint h = seed ^ (uint)length;
+                int currentIndex = 0;
+                while (length >= 4)
+                {
+                    //uint k = (uint)(input[currentIndex++] | input[currentIndex++] << 8 | input[currentIndex++] << 16 | input[currentIndex++] << 24);
+                    reader.TryRead(out uint k);
+                    k *= m;
+                    k ^= k >> r;
+                    k *= m;
+
+                    h *= m;
+                    h ^= k;
+                    length -= 4;
+                }
+
+                var remaining = reader.UnreadSpan;
+                switch (length)
+                {
+                    case 3:
+                        h ^= (ushort)(remaining[currentIndex++] | remaining[currentIndex++] << 8);
+                        h ^= (uint)(remaining[currentIndex] << 16);
+                        h *= m;
+                        break;
+                    case 2:
+                        h ^= (ushort)(remaining[currentIndex++] | remaining[currentIndex] << 8);
+                        h *= m;
+                        break;
+                    case 1:
+                        h ^= remaining[currentIndex];
+                        h *= m;
+                        break;
+                    default:
+                        break;
+                }
+
+                h ^= h >> 13;
+                h *= m;
+                h ^= h >> 15;
+
+                return h;
             }
 
+            public static uint Compute(SequenceReader<byte> reader)
+            {
+                const uint seed = 0xc58f1a7a;
+
+                const uint m = 0x5bd1e995;
+                const int r = 24;
+
+                int length = (int)reader.Length;
+                if (length == 0)
+                    return 0;
+                uint h = seed ^ (uint)length;
+                int currentIndex = 0;
+                while (length >= 4)
+                {
+                    //uint k = (uint)(input[currentIndex++] | input[currentIndex++] << 8 | input[currentIndex++] << 16 | input[currentIndex++] << 24);
+                    reader.TryRead(out uint k);
+                    k *= m;
+                    k ^= k >> r;
+                    k *= m;
+
+                    h *= m;
+                    h ^= k;
+                    length -= 4;
+                }
+
+                var remaining = reader.UnreadSpan;
+                switch (length)
+                {
+                    case 3:
+                        h ^= (ushort)(remaining[currentIndex++] | remaining[currentIndex++] << 8);
+                        h ^= (uint)(remaining[currentIndex] << 16);
+                        h *= m;
+                        break;
+                    case 2:
+                        h ^= (ushort)(remaining[currentIndex++] | remaining[currentIndex] << 8);
+                        h *= m;
+                        break;
+                    case 1:
+                        h ^= remaining[currentIndex];
+                        h *= m;
+                        break;
+                    default:
+                        break;
+                }
+
+                h ^= h >> 13;
+                h *= m;
+                h ^= h >> 15;
+
+                return h;
+            }
         }
 
         public static Crc32Hash Crc32 => Crc32Hash.Crc32;
