@@ -12,7 +12,7 @@ namespace A6k.Kafka
     /// A collection of <see cref="IMessageWriter{TMessage}"/> impl to do basic decoding of intrinsic types
     /// Similar to the Deerializer class in Confluent.Kafka
     /// </summary>
-    public class IntrinsicReader
+    public class IntrinsicDeserializers
     {
         //public static readonly IDeserializer<object> Null   = new IntDeserializer();
 

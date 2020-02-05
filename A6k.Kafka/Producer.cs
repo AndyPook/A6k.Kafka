@@ -32,12 +32,12 @@ namespace A6k.Kafka
             this.topic = topic;
             this.cluster = cluster;
 
-            if (keySerializer == null && !IntrinsicWriter.TryGetSerializer(out keySerializer))
+            if (keySerializer == null && !IntrinsicSerializers.TryGetSerializer(out keySerializer))
                 throw new ArgumentException($"{nameof(keySerializer)} not provided or discoverable");
             else
                 this.keySerializer = keySerializer;
 
-            if (valueSerializer == null && !IntrinsicWriter.TryGetSerializer(out valueSerializer))
+            if (valueSerializer == null && !IntrinsicSerializers.TryGetSerializer(out valueSerializer))
                 throw new ArgumentException($"{nameof(valueSerializer)} not provided or discoverable");
             else
                 this.valueSerializer = valueSerializer;

@@ -27,9 +27,9 @@ namespace A6k.Kafka
             this.clientId = clientId ?? throw new ArgumentNullException(nameof(clientId));
             this.bootstrapServers = bootstrapServers ?? throw new ArgumentNullException(nameof(bootstrapServers));
 
-            if (!IntrinsicReader.TryGetDeserializer(out keyDeserializer))
+            if (!IntrinsicDeserializers.TryGetDeserializer(out keyDeserializer))
                 throw new ArgumentException($"No deserializer found for Key ({typeof(TKey).Name})");
-            if (!IntrinsicReader.TryGetDeserializer(out valueDeserializer))
+            if (!IntrinsicDeserializers.TryGetDeserializer(out valueDeserializer))
                 throw new ArgumentException($"No deserializer found for Value ({typeof(TValue).Name})");
         }
 

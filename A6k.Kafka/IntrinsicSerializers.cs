@@ -11,7 +11,7 @@ namespace A6k.Kafka
     /// A collection of <see cref="IMessageReader{TMessage}"/> impl to do basic encoding of intrinsic types
     /// Similar to the Serializer class in Confluent.Kafka
     /// </summary>
-    public class IntrinsicWriter :
+    public class IntrinsicSerializers :
         ISerializer<object>,
         ISerializer<string>,
         ISerializer<byte>,
@@ -27,7 +27,7 @@ namespace A6k.Kafka
         ISerializer<double>,
         ISerializer<decimal>
     {
-        public static readonly IntrinsicWriter Instance = new IntrinsicWriter();
+        public static readonly IntrinsicSerializers Instance = new IntrinsicSerializers();
 
         public static readonly ISerializer<object> Null = Instance;
         public static readonly ISerializer<object> Ignore = Instance;

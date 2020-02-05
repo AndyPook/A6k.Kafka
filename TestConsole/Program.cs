@@ -268,7 +268,7 @@ namespace TestConsole
             };
             Console.WriteLine(msg.Value);
 
-            var response = await kafka.Produce(msg, IntrinsicWriter.String, IntrinsicWriter.String);
+            var response = await kafka.Produce(msg, IntrinsicSerializers.String, IntrinsicSerializers.String);
             Console.WriteLine($"throttle: {response.ThrottleTime}");
             foreach (var r in response.Responses)
             {
