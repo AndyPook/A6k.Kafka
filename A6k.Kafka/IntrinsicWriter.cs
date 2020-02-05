@@ -79,8 +79,6 @@ namespace A6k.Kafka
         public ValueTask WriteMessage(string message, IBufferWriter<byte> output)
         {
             var textLength = Encoding.UTF8.GetByteCount(message);
-            output.WriteShort((short)textLength);
-
             var textSpan = output.GetSpan(textLength);
             Encoding.UTF8.GetBytes(message, textSpan);
             output.Advance(textLength);
