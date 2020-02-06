@@ -38,7 +38,7 @@ namespace A6k.Kafka.Messages
             buffer.WriteVarInt((uint)0); // offsetDelta: varint
 
             record.keyBuffer = WritePrefixed(buffer, keySerializer, message.Key);
-            WritePrefixed(buffer, valueSerializer, message.Value);
+            WritePrefixed(buffer, valueSerializer, message.Value).Dispose();
 
             // headers
             buffer.WriteVarInt((ulong)message.HeadersCount);
