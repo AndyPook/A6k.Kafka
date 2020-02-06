@@ -5,5 +5,6 @@
         public string GroupId { get; set; }
         public int GenerationId { get; set; }
         public string MemberId { get; set; }
+        public string GroupInstanceId { get; set; }
     }
 }

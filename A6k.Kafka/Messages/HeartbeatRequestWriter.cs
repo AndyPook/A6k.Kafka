@@ -10,6 +10,7 @@ namespace A6k.Kafka.Messages
             output.WriteString(message.GroupId);
             output.WriteInt(message.GenerationId);
             output.WriteString(message.MemberId);
+            output.WriteNullableString(message.GroupInstanceId);
         }
     }
 }
