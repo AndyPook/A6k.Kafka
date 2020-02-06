@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Buffers;
 using System.Threading;
 using System.Threading.Channels;
@@ -7,31 +7,54 @@ using System.Threading.Tasks.Sources;
 using Microsoft.AspNetCore.Connections;
 
 using Bedrock.Framework.Protocols;
+using Bedrock.Framework;
+using System.Net;
+using System.Collections.Generic;
+using A6k.Kafka.Metadata;
+using System.Linq;
 
 namespace A6k.Kafka
 {
-    public partial class KafkaConnection : IAsyncDisposable
+    public interface IKafkaConnection
     {
-        private readonly ConnectionContext connection;
+        ValueTask<TResponse> SendRequest<TRequest, TResponse>(short apikey, short version, TRequest request, IMessageWriter<TRequest> messageWriter, IMessageReader<TResponse> messageReader);
+    }
+
+    public partial class KafkaConnection : IKafkaConnection, IAsyncDisposable
+    {
+        private readonly Client client;
+        private readonly IPEndPoint endpoint;
+        private ConnectionContext connection;
         private CancellationTokenSource cancellation = new CancellationTokenSource();
 
         private int correlationId = 0;
         private ChannelWriter<Op> outboundWriter;
         private ChannelWriter<Op> inflightWriter;
 
-        public KafkaConnection(ConnectionContext connection, string clientId)
-        {
-            this.connection = connection;
-            this.ClientId = clientId;
+        //public KafkaConnection(ConnectionContext connection, string clientId)
+        //{
+        //    this.connection = connection ?? throw new ArgumentNullException(nameof(connection));
+        //    ClientId = clientId;
 
-            StartOutbound(cancellation.Token);
-            StartInbound(cancellation.Token);
+        //    StartOutbound(cancellation.Token);
+        //    StartInbound(cancellation.Token);
+        //}
+
+        public KafkaConnection(Client client, IPEndPoint endpoint, string clientId)
+        {
+            this.client = client ?? throw new ArgumentNullException(nameof(client));
+            this.endpoint = endpoint;
+            ClientId = clientId;
         }
 
         public string ClientId { get; }
+        public IReadOnlyList<ApiVersion> ApiVersions { get; private set; }
 
-        private ValueTask<TResponse> SendRequest<TRequest, TResponse>(short apikey, short version, TRequest request, IMessageWriter<TRequest> messageWriter, IMessageReader<TResponse> messageReader)
+
+        public async ValueTask<TResponse> SendRequest<TRequest, TResponse>(short apikey, short version, TRequest request, IMessageWriter<TRequest> messageWriter, IMessageReader<TResponse> messageReader)
         {
+            await EnsureConnection();
+
             var op = new Op<TRequest, TResponse>
             {
                 ApiKey = apikey,
@@ -41,8 +64,24 @@ namespace A6k.Kafka
                 MessageReader = messageReader
             };
             outboundWriter.TryWrite(op);
-            return op.GetResponse();
+            return await op.GetResponse();
         }
+
+        private async ValueTask EnsureConnection()
+        {
+            if (connection is null)
+            {
+                connection = await client.ConnectAsync(endpoint);
+
+                StartOutbound(cancellation.Token);
+                StartInbound(cancellation.Token);
+
+                var versions = await ApiVersion();
+                ApiVersions = versions.ApiVersions.Select(x => new ApiVersion(x.ApiKey, x.MinVersion, x.MaxVersion)).ToArray();
+                Console.WriteLine("connected: " + endpoint);
+            }
+        }
+
 
         private void StartOutbound(CancellationToken cancellationToken = default)
         {
@@ -53,7 +92,7 @@ namespace A6k.Kafka
             outboundWriter = channel.Writer;
             var reader = channel.Reader;
 
-            _ = ProcessOutbound(reader, cancellationToken);
+            _ = ProcessOutbound(reader, cancellationToken).ConfigureAwait(false);
         }
 
         private async ValueTask ProcessOutbound(ChannelReader<Op> outboundReader, CancellationToken cancellationToken)
@@ -118,31 +157,31 @@ namespace A6k.Kafka
             inflightWriter = channel.Writer;
             var reader = channel.Reader;
 
-            _ = ProcessInbound(reader, cancellationToken);
+            _ = ProcessInbound(reader, cancellationToken).ConfigureAwait(false);
         }
 
         private async Task ProcessInbound(ChannelReader<Op> inflightReader, CancellationToken cancellationToken)
         {
             await Task.Yield();
             var headerReader = new KafkaResponseHeaderReader();
-            var reader = connection.CreateReader();
+            var protocolReader = connection.CreateReader();
 
             while (!cancellationToken.IsCancellationRequested)
             {
                 try
                 {
-                    var result = await reader.ReadAsync(headerReader, cancellationToken);
+                    var result = await protocolReader.ReadAsync(headerReader, cancellationToken);
                     if (result.IsCompleted)
                         break;
 
                     var header = result.Message;
-                    reader.Advance();
+                    protocolReader.Advance();
 
                     if (!inflightReader.TryRead(out var op) || op.CorrelationId != header.CorrelationId)
                         throw new InvalidOperationException("no outstanding op for correlationId: " + header.CorrelationId);
 
-                    await op.ParseResponse(reader);
-                    reader.Advance();
+                    await op.ParseResponse(protocolReader);
+                    protocolReader.Advance();
                     op.Dispose();
                 }
                 catch (Exception)
@@ -154,10 +193,10 @@ namespace A6k.Kafka
             }
         }
 
-        public ValueTask DisposeAsync()
+        public async ValueTask DisposeAsync()
         {
             cancellation.Cancel();
-            return connection.DisposeAsync();
+            await connection.DisposeAsync();
         }
 
         private abstract class Op : IDisposable

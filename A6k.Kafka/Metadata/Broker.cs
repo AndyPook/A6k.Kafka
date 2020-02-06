@@ -1,17 +1,12 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+using System.Net;
 
 namespace A6k.Kafka.Metadata
 {
-    public class Broker : IAsyncDisposable, IEquatable<Broker>
+    public class Broker : IEquatable<Broker>
     {
-        private readonly KafkaConnectionFactory kafkaConnectionFactory;
-
-        public Broker(int nodeId, string host, int port, string rack, KafkaConnectionFactory kafkaConnectionFactory)
+        public Broker(int nodeId, string host, int port, string rack)
         {
             // TODO: guard statements
 
@@ -19,7 +14,15 @@ namespace A6k.Kafka.Metadata
             Host = host;
             Port = port;
             Rack = rack;
-            this.kafkaConnectionFactory = kafkaConnectionFactory ?? throw new ArgumentNullException(nameof(kafkaConnectionFactory));
+
+            if (!IPAddress.TryParse(Host, out var addr))
+            {
+                string s = Host.Replace("localhost", "127.0.0.1");
+                if (!IPAddress.TryParse(s, out addr))
+                    throw new ArgumentException("invalid broker address");
+            }
+
+            EndPoint = new IPEndPoint(addr, Port);
         }
 
         public int NodeId { get; }
@@ -27,15 +30,7 @@ namespace A6k.Kafka.Metadata
         public int Port { get; }
         public string Rack { get; }
 
-        public KafkaConnection Connection { get; private set; }
-        public IReadOnlyList<ApiVersion> ApiVersions { get; private set; }
-
-        public async Task Start(string clientId)
-        {
-            Connection = await kafkaConnectionFactory.CreateConnection(Host, Port, clientId);
-            var version = await Connection.ApiVersion();
-            ApiVersions = version.ApiVersions.Select(x => new ApiVersion(x.ApiKey, x.MinVersion, x.MaxVersion)).ToArray();
-        }
+        public IPEndPoint EndPoint { get; }
 
         public bool Equals(string host, int port, string rack = null)
         {
@@ -64,7 +59,5 @@ namespace A6k.Kafka.Metadata
         public override int GetHashCode() => HashCode.Combine(NodeId, Host, Port, Rack);
 
         public override string ToString() => $"node: {NodeId}: {Host}:{Port} ({Rack})";
-
-        public ValueTask DisposeAsync() => Connection.DisposeAsync();
     }
 }

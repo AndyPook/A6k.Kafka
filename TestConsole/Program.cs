@@ -31,7 +31,7 @@ namespace TestConsole
                 e.Cancel = true;
             };
 
-            //var kafka = await GetKafka();
+            //var kafka = GetKafka();
             //await GetVersion(kafka);
             //await GetMetadata(kafka);
             //await Produce(kafka);
@@ -72,11 +72,10 @@ namespace TestConsole
 
         private static async Task BrokerMgr()
         {
-            var mdMgr = GetMetadataManager();
+            var cluster = GetClusterManager();
+            await cluster.Connect(BootstrapServers);
 
-            await mdMgr.Connect("fred", BootstrapServers);
-
-            foreach (var b in mdMgr.Brokers)
+            foreach (var b in cluster.Brokers)
             {
                 Console.WriteLine($"broker: {b.NodeId} - {b.Host}:{b.Port} (rack={b.Rack})");
                 Console.WriteLine("  " + string.Join(",", b.ApiVersions.Select(x => $"{x.ApiKey}({x.MinVersion}-{x.MaxVersion})")));
@@ -85,9 +84,9 @@ namespace TestConsole
 
         private static async Task Producer()
         {
-            var mdMgr = GetMetadataManager();
-            await mdMgr.Connect("fred-producer", BootstrapServers);
-            var producer = new Producer<string, string>(TopicName, mdMgr);
+            var cluster = GetClusterManager();
+            await cluster.Connect("fred-producer");
+            var producer = new Producer<string, string>(TopicName, cluster);
 
             var response = await producer.Produce("fred", Guid.NewGuid().ToString());
 
@@ -103,10 +102,10 @@ namespace TestConsole
 
         private static async Task ConsumerGroup()
         {
-            var mdMgr = GetMetadataManager();
-            await mdMgr.Connect("a6k", BootstrapServers);
+            var cluster = GetClusterManager();
+            await cluster.Connect(BootstrapServers);
 
-            var coordinator = new ClientGroupCoordinator(mdMgr, "testgroup", TopicName);
+            var coordinator = new ClientGroupCoordinator(cluster, "testgroup", TopicName);
             coordinator.StateChanged += (c, oldState, newState) => Console.WriteLine($"state: {oldState} -> {newState}");
             coordinator.CoordinatorFound += c => Console.WriteLine($"coordinator: {c.CoordinatorId}");
             coordinator.GroupJoined += c => Console.WriteLine($"joined: memberId: {c.MemberId} ({(c.IsLeader ? "leader" : "member")})");
@@ -122,8 +121,10 @@ namespace TestConsole
 
         private static async Task Consumer()
         {
-            var mdMgr = GetMetadataManager();
-            var consumer = new Consumer<string, string>(mdMgr, "fred", BootstrapServers);
+            var cluster = GetClusterManager();
+            await cluster.Connect(BootstrapServers);
+
+            var consumer = new Consumer<string, string>(cluster);
             await consumer.Subscribe(TopicName);
 
             var start = DateTime.UtcNow;
@@ -140,7 +141,7 @@ namespace TestConsole
             }
         }
 
-        private static MetadataManager GetMetadataManager()
+        private static ClusterManager GetClusterManager()
         {
             var serviceProvider =
                            new ServiceCollection()
@@ -150,14 +151,14 @@ namespace TestConsole
                                builder.AddConsole();
                            })
                            .AddSingleton<KafkaConnectionFactory>()
-                           .AddTransient<MetadataManager>()
+                           .AddTransient<ClusterManager>()
                           .BuildServiceProvider();
 
-            var brokerMgr = serviceProvider.GetRequiredService<MetadataManager>();
-            return brokerMgr;
+            //return serviceProvider.GetRequiredService<ClusterManager>();
+            return ActivatorUtilities.CreateInstance<ClusterManager>(serviceProvider, "a6k");
         }
 
-        private static async Task<KafkaConnection> GetKafka(int port = 29092)
+        private static KafkaConnection GetKafka(int port = 29092)
         {
             var serviceProvider =
                new ServiceCollection()
@@ -175,8 +176,7 @@ namespace TestConsole
 
             Console.WriteLine(BitConverter.IsLittleEndian ? "little" : "big");
 
-            var connection = await client.ConnectAsync(new IPEndPoint(IPAddress.Loopback, port));
-            return new KafkaConnection(connection, "fred");
+            return new KafkaConnection(client, new IPEndPoint(IPAddress.Loopback, port), "fred");
         }
 
         private static async Task Fetch(KafkaConnection kafka, string topicName = TopicName, int partitionId = 0, int offset = 0)

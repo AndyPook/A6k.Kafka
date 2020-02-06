@@ -38,13 +38,13 @@ namespace A6k.Kafka
             Heartbeating
         }
 
-        private readonly MetadataManager metadataManager;
+        private readonly ClusterManager cluster;
         private readonly ConsumerGroupMetadata groupMetadata;
         private readonly byte[] groupMetadataBytes;
 
-        public ClientGroupCoordinator(MetadataManager metadataManager, string groupId, params string[] topics)
+        public ClientGroupCoordinator(ClusterManager cluster, string groupId, params string[] topics)
         {
-            this.metadataManager = metadataManager;
+            this.cluster = cluster;
             this.GroupId = groupId;
 
             groupMetadata = new ConsumerGroupMetadata(0, topics);
@@ -82,9 +82,7 @@ namespace A6k.Kafka
         public event Action<ClientGroupCoordinator> GroupJoined;
         public event Action<ClientGroupCoordinator> GroupSynced;
         public event Action<ClientGroupCoordinator, CoordinatorState, CoordinatorState> StateChanged;
-
-        public Broker GetCoordinator() => metadataManager.GetBroker(CoordinatorId);
-
+        
         public async Task Start()
         {
             State = CoordinatorState.None;
@@ -107,8 +105,8 @@ namespace A6k.Kafka
         private async Task FindCoordinator()
         {
             State = CoordinatorState.Finding;
-            var broker = metadataManager.GetRandomBroker();
-            var response = await broker.Connection.FindCoordinator(GroupId);
+            var broker = cluster.GetRandomBroker();
+            var response = await broker.FindCoordinator(GroupId);
             switch (response.ErrorCode)
             {
                 case ResponseError.NO_ERROR:
@@ -119,8 +117,8 @@ namespace A6k.Kafka
                     throw new KafkaException($"FindCoordinator oops: {response.ErrorCode.ToString()}");
             }
 
-            var b = metadataManager.GetBroker(response.NodeId);
-            if (!b.Equals(response.Host, response.Port))
+            var b = cluster.GetBroker(response.NodeId);
+            if (!b.Broker.Equals(response.Host, response.Port))
                 throw new KafkaException($"Coordinator detail do not match metadata broker: {response.NodeId}/{response.Host}:{response.Port} != {b}");
 
             CoordinatorId = response.NodeId;
@@ -132,11 +130,11 @@ namespace A6k.Kafka
         private async Task JoinGroup()
         {
             State = CoordinatorState.Joining;
-            var b = metadataManager.GetBroker(CoordinatorId);
+            var b = cluster.GetBroker(CoordinatorId);
             bool joined = false;
             while (!joined)
             {
-                var response = await b.Connection.JoinGroup(new JoinGroupRequest
+                var response = await b.JoinGroup(new JoinGroupRequest
                 {
                     GroupId = GroupId,
                     ProtocolType = "consumer",
@@ -149,7 +147,7 @@ namespace A6k.Kafka
                         new JoinGroupRequest.Protocol{ Name = "roundrobin", Metadata = groupMetadataBytes }
                     }
                 });
-                Console.WriteLine("JoinGroup: " + response.ErrorCode);
+
                 switch (response.ErrorCode)
                 {
                     case ResponseError.NO_ERROR:
@@ -180,7 +178,7 @@ namespace A6k.Kafka
         {
             State = CoordinatorState.Syncing;
             Console.WriteLine("SyncGroup");
-            var b = metadataManager.GetBroker(CoordinatorId);
+            var b = cluster.GetBroker(CoordinatorId);
             var request = new SyncGroupRequest
             {
                 GroupId = GroupId,
@@ -192,7 +190,7 @@ namespace A6k.Kafka
                 // figure out member assignments
             }
 
-            var response = await b.Connection.SyncGroup(request);
+            var response = await b.SyncGroup(request);
             switch (response.ErrorCode)
             {
                 case ResponseError.NO_ERROR:
@@ -243,18 +241,18 @@ namespace A6k.Kafka
         private async Task StartHeartbeat(CancellationToken cancellationToken)
         {
             State = CoordinatorState.Heartbeating;
-            var coordinator = GetCoordinator();
+            var coordinator = cluster.GetBroker(CoordinatorId);
             while (!cancellationToken.IsCancellationRequested)
             {
                 //Console.WriteLine("Heartbeat");
-                var response = await coordinator.Connection.Heartbeat(new HeartbeatRequest
+                var response = await coordinator.Heartbeat(new HeartbeatRequest
                 {
                     GroupId = GroupId,
                     GenerationId = GenerationId,
                     MemberId = MemberId
                 });
 
-                //var response = await broker.Connection.ApiVersion();
+                //var response = await broker.ApiVersion();
 
                 //switch (response.ErrorCode)
                 //{

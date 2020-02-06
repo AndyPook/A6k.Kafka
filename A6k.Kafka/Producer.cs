@@ -21,13 +21,13 @@ namespace A6k.Kafka
     public class Producer<TKey, TValue>
     {
         private readonly string topic;
-        private readonly MetadataManager cluster;
+        private readonly ClusterManager cluster;
 
         private IPartitioner partitioner = new DefaultPartitioner();
         private ISerializer<TKey> keySerializer;
         private ISerializer<TValue> valueSerializer;
 
-        public Producer(string topic, MetadataManager cluster, ISerializer<TKey> keySerializer = null, ISerializer<TValue> valueSerializer = null)
+        public Producer(string topic, ClusterManager cluster, ISerializer<TKey> keySerializer = null, ISerializer<TValue> valueSerializer = null)
         {
             this.topic = topic;
             this.cluster = cluster;
@@ -62,7 +62,7 @@ namespace A6k.Kafka
             var partitionLeader = t.Partitions[record.PartitionId.Value].Leader;
             var b = cluster.GetBroker(partitionLeader);
 
-            var response = await b.Connection.Produce(record);
+            var response = await b.Produce(record);
             if (response.Topics.Count > 1 || response.Topics[0].Partitions.Count > 1)
                 throw new KafkaException("Expected single partition in Produce request");
 

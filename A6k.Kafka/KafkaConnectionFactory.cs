@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Net;
 using System.Threading.Tasks;
+using A6k.Kafka.Metadata;
 using Bedrock.Framework;
 using Microsoft.Extensions.Logging;
 
@@ -9,34 +10,44 @@ namespace A6k.Kafka
     public class KafkaConnectionFactory
     {
         private readonly IServiceProvider serviceProvider;
-
-        public ILogger<KafkaConnectionFactory> Logger { get; }
+        private readonly ILogger<KafkaConnectionFactory> logger;
 
         public KafkaConnectionFactory(IServiceProvider serviceProvider, ILogger<KafkaConnectionFactory> logger)
         {
             this.serviceProvider = serviceProvider ?? throw new ArgumentNullException(nameof(serviceProvider));
-            Logger = logger ?? throw new ArgumentNullException(nameof(logger));
+            this.logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
 
-        public async Task<KafkaConnection> CreateConnection(EndPoint endPoint, string clientId)
+        public Client CreateClient()
         {
             var client = new ClientBuilder(serviceProvider)
                 .UseSockets()
                 .UseConnectionLogging()
                 .Build();
+            return client;
+        }
 
-            Logger.LogInformation("Connecting to: {broker}", endPoint);
-            var connection = await client.ConnectAsync(endPoint);
-            var kafka = new KafkaConnection(connection, clientId);
+        public KafkaConnection CreateConnection(IPEndPoint endPoint, string clientId)
+        {
+            var client = CreateClient();
+
+            logger.LogInformation("Connecting to: {broker}", endPoint);
+            var kafka = new KafkaConnection(client, endPoint, clientId);
             return kafka;
         }
 
-        public Task<KafkaConnection> CreateConnection(string addr, string clientId)
+        public KafkaConnection CreateConnection(string addr, string clientId)
         {
-            IPEndPoint ep = ParseAddress(addr);
+            if (!IPEndPoint.TryParse(addr, out var ep))
+            {
+                string s = addr.Replace("localhost", "127.0.0.1");
+                if (!IPEndPoint.TryParse(s, out ep))
+                    throw new InvalidOperationException("invalid broker address");
+            }
+
             return CreateConnection(ep, clientId);
         }
-        public Task<KafkaConnection> CreateConnection(string host, int port, string clientId)
+        public KafkaConnection CreateConnection(string host, int port, string clientId)
         {
             if (!IPAddress.TryParse(host, out var addr))
             {
@@ -47,18 +58,6 @@ namespace A6k.Kafka
 
             var ep = new IPEndPoint(addr, port);
             return CreateConnection(ep, clientId);
-        }
-
-        private static IPEndPoint ParseAddress(string server)
-        {
-            if (!IPEndPoint.TryParse(server, out var ep))
-            {
-                string s = server.Replace("localhost", "127.0.0.1");
-                if (!IPEndPoint.TryParse(s, out ep))
-                    throw new InvalidOperationException("invalid broker address");
-            }
-
-            return ep;
         }
     }
 }

@@ -11,27 +11,29 @@ using A6k.Kafka.Metadata;
 
 namespace A6k.Kafka
 {
-    public class MetadataManager : IAsyncDisposable
+    public class ClusterManager : IAsyncDisposable
     {
         private readonly KafkaConnectionFactory kafkaConnectionFactory;
-        private readonly ILogger<MetadataManager> logger;
+        private readonly ILogger<ClusterManager> logger;
 
-        private ConcurrentDictionary<int, Broker> brokers = new ConcurrentDictionary<int, Broker>();
+        private ConcurrentDictionary<int, BrokerConnection> brokers = new ConcurrentDictionary<int, BrokerConnection>();
         private TopicMetadataCache topics;
 
-        public MetadataManager(KafkaConnectionFactory kafkaConnectionFactory, ILogger<MetadataManager> logger)
+        public ClusterManager(string clientId, KafkaConnectionFactory kafkaConnectionFactory, ILogger<ClusterManager> logger)
         {
+            ClientId = clientId;
             this.kafkaConnectionFactory = kafkaConnectionFactory ?? throw new ArgumentNullException(nameof(kafkaConnectionFactory));
             this.logger = logger ?? throw new ArgumentNullException(nameof(logger));
             this.topics = new TopicMetadataCache(this);
         }
 
+        public string ClientId { get; }
         public string ClusterId { get; private set; }
         public int ControllerId { get; private set; }
 
-        public IEnumerable<Broker> Brokers => brokers.Values;
+        public IEnumerable<BrokerConnection> Brokers => brokers.Values;
 
-        public async Task Connect(string clientId, string bootstrapServers)
+        public async Task Connect(string bootstrapServers)
         {
             var servers = bootstrapServers.Split(';');
 
@@ -39,21 +41,21 @@ namespace A6k.Kafka
             {
                 try
                 {
-                    await using var kafka = await kafkaConnectionFactory.CreateConnection(server, clientId);
+                    await using var kafka = kafkaConnectionFactory.CreateConnection(server, ClientId);
                     var meta = await kafka.Metadata(null);
 
                     ClusterId = meta.ClusterId;
                     ControllerId = meta.ControllerId;
-                    foreach (var broker in meta.Brokers)
+                    foreach (var b in meta.Brokers)
                     {
                         logger.LogInformation("Discovered: {broker}", server);
-                        brokers[broker.NodeId] = new Broker(
-                            broker.NodeId,
-                            broker.Host,
-                            broker.Port,
-                            broker.Rack,
-                            kafkaConnectionFactory
+                        var broker = new Broker(
+                            b.NodeId,
+                            b.Host,
+                            b.Port,
+                            b.Rack
                         );
+                        brokers[broker.NodeId] = new BrokerConnection(broker, kafkaConnectionFactory.CreateClient(), ClientId);
                     }
 
                     break;
@@ -64,10 +66,10 @@ namespace A6k.Kafka
                 }
             }
             if (brokers.Count == 0)
-                throw new InvalidOperationException("no reachable brokers via: " + bootstrapServers);
+                throw new InvalidOperationException("no brokers reachable via: " + bootstrapServers);
 
-            foreach (var broker in brokers.Values)
-                await broker.Start(clientId);
+            //foreach (var broker in brokers.Values)
+            //    await broker.Open(ClientId);
         }
 
         public async Task Disconnect()
@@ -82,14 +84,14 @@ namespace A6k.Kafka
             }
         }
 
-        public Broker GetBroker(int nodeId)
+        public BrokerConnection GetBroker(int nodeId)
         {
             if (brokers.TryGetValue(nodeId, out var broker))
                 return broker;
             throw new InvalidOperationException($"Broker ({nodeId}) not known");
         }
 
-        public Broker GetRandomBroker()
+        public BrokerConnection GetRandomBroker()
         {
             // not random, but this'll do for now
             return brokers.Values.First();
@@ -107,13 +109,13 @@ namespace A6k.Kafka
         {
             private static readonly TimeSpan DefaultTimeout = TimeSpan.FromSeconds(300);
 
-            private readonly MetadataManager metadataManager;
+            private readonly ClusterManager metadataManager;
             private readonly TimeSpan timeout;
             private readonly MemoryCache memoryCache = new MemoryCache(Options.Create(new MemoryCacheOptions()));
 
-            public TopicMetadataCache(MetadataManager metadataManager) : this(metadataManager, DefaultTimeout) { }
+            public TopicMetadataCache(ClusterManager metadataManager) : this(metadataManager, DefaultTimeout) { }
 
-            public TopicMetadataCache(MetadataManager metadataManager, TimeSpan timeout)
+            public TopicMetadataCache(ClusterManager metadataManager, TimeSpan timeout)
             {
                 this.metadataManager = metadataManager;
                 this.timeout = timeout;
@@ -140,7 +142,7 @@ namespace A6k.Kafka
             private async ValueTask<TopicMetadata> GetTopicMetaData(string topicName)
             {
                 var broker = metadataManager.GetRandomBroker();
-                var topicResponse = await broker.Connection.Metadata(topicName);
+                var topicResponse = await broker.Metadata(topicName);
                 var t = topicResponse.Topics[0];
                 return new TopicMetadata(
                     t.TopicName,
@@ -154,7 +156,7 @@ namespace A6k.Kafka
             public async Task RefreshAllTopics()
             {
                 var broker = metadataManager.GetRandomBroker();
-                var md = await broker.Connection.Metadata(string.Empty);
+                var md = await broker.Metadata(string.Empty);
                 foreach (var topicMetadata in md.Topics)
                     memoryCache.Set(topicMetadata.TopicName, topicMetadata, timeout);
             }

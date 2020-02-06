@@ -10,9 +10,7 @@ namespace A6k.Kafka
 {
     public class Consumer<TKey, TValue>
     {
-        private readonly MetadataManager metadataManager;
-        private readonly string clientId;
-        private readonly string bootstrapServers;
+        private readonly ClusterManager metadataManager;
 
         private readonly IDeserializer<TKey> keyDeserializer;
         private readonly IDeserializer<TValue> valueDeserializer;
@@ -21,11 +19,9 @@ namespace A6k.Kafka
 
         private ChannelReader<Message<TKey, TValue>> messageReader;
 
-        public Consumer(MetadataManager metadataManager, string clientId, string bootstrapServers)
+        public Consumer(ClusterManager metadataManager)
         {
             this.metadataManager = metadataManager ?? throw new ArgumentNullException(nameof(metadataManager));
-            this.clientId = clientId ?? throw new ArgumentNullException(nameof(clientId));
-            this.bootstrapServers = bootstrapServers ?? throw new ArgumentNullException(nameof(bootstrapServers));
 
             if (!IntrinsicDeserializers.TryGetDeserializer(out keyDeserializer))
                 throw new ArgumentException($"No deserializer found for Key ({typeof(TKey).Name})");
@@ -35,7 +31,6 @@ namespace A6k.Kafka
 
         public async Task Subscribe(string topicName)
         {
-            await metadataManager.Connect(clientId, bootstrapServers);
             topicMetadata = await metadataManager.GetTopic(topicName);
             Fetch();
         }
@@ -62,12 +57,12 @@ namespace A6k.Kafka
             }
         }
 
-        private async Task Fetch(ChannelWriter<Message<TKey, TValue>> messageWriter, string topic, PartitionMetadata partition, Broker broker, CancellationToken cancellationToken)
+        private async Task Fetch(ChannelWriter<Message<TKey, TValue>> messageWriter, string topic, PartitionMetadata partition, BrokerConnection broker, CancellationToken cancellationToken)
         {
             long offset = 0;
             while (!cancellationToken.IsCancellationRequested)
             {
-                var fetch = await broker.Connection.Fetch(new FetchRequest
+                var fetch = await broker.Fetch(new FetchRequest
                 {
                     ReplicaId = -1,
                     MaxWaitTime = 100,
@@ -142,12 +137,12 @@ namespace A6k.Kafka
 
     public class ConsumerPartitionFetcher
     {
-        private async Task Fetch(ChannelWriter<RecordBatch.Record> messageWriter, string topic, PartitionMetadata partition, Broker broker, CancellationToken cancellationToken)
+        private async Task Fetch(ChannelWriter<RecordBatch.Record> messageWriter, string topic, PartitionMetadata partition, BrokerConnection broker, CancellationToken cancellationToken)
         {
             long offset = 0;
             while (!cancellationToken.IsCancellationRequested)
             {
-                var fetch = await broker.Connection.Fetch(new FetchRequest
+                var fetch = await broker.Fetch(new FetchRequest
                 {
                     ReplicaId = -1,
                     MaxWaitTime = 100,
@@ -156,12 +151,12 @@ namespace A6k.Kafka
                     IsolationLevel = 0,
                     SessionId = 0,
                     SessionEpoc = -1,
-                    Topics = new FetchRequest.Topic[]
+                    Topics = new []
                     {
                             new FetchRequest.Topic
                             {
                                 TopicName = topic,
-                                Partitions = new FetchRequest.Topic.Partition[]
+                                Partitions = new []
                                 {
                                     new FetchRequest.Topic.Partition
                                     {

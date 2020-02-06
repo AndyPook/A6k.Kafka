@@ -7,6 +7,8 @@ using System.Runtime.CompilerServices;
 
 namespace A6k.Kafka
 {
+    // borrowed from https://github.com/yigolden/TiffLibrary
+
     internal sealed class MemoryBufferWriter : IBufferWriter<byte>, IDisposable
     {
         private MemoryPool<byte> memoryPool;
