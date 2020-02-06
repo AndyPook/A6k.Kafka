@@ -87,7 +87,7 @@ namespace A6k.Kafka
 
                 op.WriteMessage(buffer);
 
-                connection.Transport.Output.WriteInt((int)buffer.Length);
+                connection.Transport.Output.WriteInt(buffer.Length);
                 buffer.CopyTo(connection.Transport.Output);
                 await connection.Transport.Output.FlushAsync().ConfigureAwait(false);
             }
@@ -121,7 +121,7 @@ namespace A6k.Kafka
             _ = ProcessInbound(reader, cancellationToken);
         }
 
-        private async ValueTask ProcessInbound(ChannelReader<Op> inflightReader, CancellationToken cancellationToken)
+        private async Task ProcessInbound(ChannelReader<Op> inflightReader, CancellationToken cancellationToken)
         {
             await Task.Yield();
             var headerReader = new KafkaResponseHeaderReader();
@@ -142,6 +142,7 @@ namespace A6k.Kafka
                         throw new InvalidOperationException("no outstanding op for correlationId: " + header.CorrelationId);
 
                     await op.ParseResponse(reader);
+                    reader.Advance();
                     op.Dispose();
                 }
                 catch (Exception)
@@ -149,10 +150,6 @@ namespace A6k.Kafka
                     if (!connection.ConnectionClosed.IsCancellationRequested)
                         throw;
                     break;
-                }
-                finally
-                {
-                    reader.Advance();
                 }
             }
         }
@@ -187,7 +184,6 @@ namespace A6k.Kafka
             public override async ValueTask ParseResponse(ProtocolReader reader)
             {
                 var result = await reader.ReadAsync(MessageReader);
-                reader.Advance();
                 vts.SetResult(result.Message);
             }
 
