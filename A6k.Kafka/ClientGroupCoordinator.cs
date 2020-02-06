@@ -2,9 +2,11 @@
 using System.Buffers;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
+
 using A6k.Kafka.Messages;
-using Bedrock.Framework.Protocols;
+using A6k.Kafka.Metadata;
 
 namespace A6k.Kafka
 {
@@ -24,74 +26,121 @@ namespace A6k.Kafka
 
     public class ClientGroupCoordinator
     {
-        public enum State
+        public enum CoordinatorState
         {
             None,
-            Find,
+            Finding,
             Found,
-            Join,
+            Joining,
+            Joined,
+            Syncing,
+            Synced,
+            Heartbeating
         }
 
         private readonly MetadataManager metadataManager;
-        private readonly string groupId;
         private readonly ConsumerGroupMetadata groupMetadata;
         private readonly byte[] groupMetadataBytes;
-
-        private bool heartbeatRunning = false;
-        private int coordinatorBrokerId = 0;
-        private int generationId = 0;
-        private string memberId;
-        private string leaderId;
-        private State state;
 
         public ClientGroupCoordinator(MetadataManager metadataManager, string groupId, params string[] topics)
         {
             this.metadataManager = metadataManager;
-            this.groupId = groupId;
+            this.GroupId = groupId;
 
             groupMetadata = new ConsumerGroupMetadata(0, topics);
             groupMetadataBytes = groupMetadata.ToArray();
         }
 
-        public State CurrentState => state;
-        public int CoordinatorId => coordinatorBrokerId;
-        public string MemberId => memberId;
-        public string LeaderId => leaderId;
+        public string GroupId { get; }
+        private CoordinatorState state;
+        public CoordinatorState State
+        {
+            get => state;
+            private set
+            {
+                try
+                {
+                    StateChanged?.Invoke(this, state, value);
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine("problem in state chage handler: " + ex.Message);
+                }
+                state = value;
+            }
+        }
+        public int CoordinatorId { get; private set; }
+        public string MemberId { get; private set; }
+        public string LeaderId { get; private set; }
+        public int GenerationId { get; private set; }
 
-        public bool IsLeader => string.Equals(leaderId, memberId);
+        public bool IsLeader => string.Equals(LeaderId, MemberId);
+        public MemberState CurrentMemberState { get; private set; } = MemberState.Empty;
         public IReadOnlyList<GroupMember> Members { get; private set; } = Array.Empty<GroupMember>();
 
-        public async Task FindCoordinator()
+        public event Action<ClientGroupCoordinator> CoordinatorFound;
+        public event Action<ClientGroupCoordinator> GroupJoined;
+        public event Action<ClientGroupCoordinator> GroupSynced;
+        public event Action<ClientGroupCoordinator, CoordinatorState, CoordinatorState> StateChanged;
+
+        public Broker GetCoordinator() => metadataManager.GetBroker(CoordinatorId);
+
+        public async Task Start()
         {
+            State = CoordinatorState.None;
+            await FindCoordinator();
+            await RequestJoin();
+        }
+
+        public void Stop() => CancelHeartbeat();
+
+        private async Task RequestJoin()
+        {
+            if (heartbeatCancellation != null && !heartbeatCancellation.IsCancellationRequested)
+                CancelHeartbeat();
+
+            await JoinGroup();
+            await SyncGroup();
+            _ = StartHeartbeat();
+        }
+
+        private async Task FindCoordinator()
+        {
+            State = CoordinatorState.Finding;
             var broker = metadataManager.GetRandomBroker();
-            var response = await broker.Connection.FindCoordinator(groupId);
-            //switch (response.ErrorCode)
-            //{
-            //    case ResponseError.COORDINATOR_NOT_AVAILABLE:
-            //        throw null;
-            //}
-            if (response.ErrorCode != ResponseError.NO_ERROR)
-                throw new InvalidOperationException($"FindCoordinator oops: {response.ErrorCode.ToString()}");
+            var response = await broker.Connection.FindCoordinator(GroupId);
+            switch (response.ErrorCode)
+            {
+                case ResponseError.NO_ERROR:
+                    break;
+                case ResponseError.COORDINATOR_NOT_AVAILABLE:
+                    throw new KafkaException($"FindCoordinator not available: {response.ErrorCode.ToString()}");
+                default:
+                    throw new KafkaException($"FindCoordinator oops: {response.ErrorCode.ToString()}");
+            }
 
             var b = metadataManager.GetBroker(response.NodeId);
             if (!b.Equals(response.Host, response.Port))
-                throw new InvalidOperationException($"Coordinator detail do not match metadata broker: {response.NodeId}/{response.Host}:{response.Port} != {b}");
+                throw new KafkaException($"Coordinator detail do not match metadata broker: {response.NodeId}/{response.Host}:{response.Port} != {b}");
 
-            coordinatorBrokerId = response.NodeId;
-            state = State.Found;
+            CoordinatorId = response.NodeId;
+            State = CoordinatorState.Found;
+
+            CoordinatorFound?.Invoke(this);
         }
 
-        public async Task JoinGroup()
+        private async Task JoinGroup()
         {
-            var b = metadataManager.GetBroker(coordinatorBrokerId);
+            State = CoordinatorState.Joining;
+            var b = metadataManager.GetBroker(CoordinatorId);
             bool joined = false;
             while (!joined)
             {
                 var response = await b.Connection.JoinGroup(new JoinGroupRequest
                 {
-                    GroupId = groupId,
+                    GroupId = GroupId,
                     ProtocolType = "consumer",
-                    MemberId = memberId,
+                    MemberId = MemberId,
                     SessionTimeout = 10_000,
                     RebalanceTimeout = 300_000,
                     Protocols = new JoinGroupRequest.Protocol[]
@@ -104,74 +153,119 @@ namespace A6k.Kafka
                 switch (response.ErrorCode)
                 {
                     case ResponseError.NO_ERROR:
-                        memberId = response.MemberId;
-                        leaderId = response.Leader;
-                        generationId = response.GenerationId;
+                        MemberId = response.MemberId;
+                        LeaderId = response.Leader;
+                        GenerationId = response.GenerationId;
+                        if (joined && IsLeader)
+                            Members = response.Members.Select(m => new GroupMember(m.MemberId, m.GroupInstanceId, m.Metadata)).ToArray();
+                        else
+                            Members = Array.Empty<GroupMember>();
                         joined = true;
+                        State = CoordinatorState.Joined;
+                        GroupJoined?.Invoke(this);
                         break;
                     case ResponseError.MEMBER_ID_REQUIRED:
-                        memberId = response.MemberId;
+                        MemberId = response.MemberId;
                         break;
                     case ResponseError.UNKNOWN_MEMBER_ID:
-                        throw new InvalidOperationException();
+                        throw new KafkaException("JoinGroup: unknown MembrId");
                     default:
-                        await Task.Delay(1_000);
+                        await Task.Delay(500);
                         break;
                 }
-
-                if (joined && IsLeader)
-                    Members = response.Members.Select(m => new GroupMember(m.MemberId, m.GroupInstanceId, m.Metadata)).ToArray();
-                else
-                    Members = Array.Empty<GroupMember>();
             }
         }
 
-        public async Task SyncGroup()
+        private async Task SyncGroup()
         {
-            var b = metadataManager.GetBroker(coordinatorBrokerId);
-            var response = await b.Connection.SyncGroup(new SyncGroupRequest
+            State = CoordinatorState.Syncing;
+            Console.WriteLine("SyncGroup");
+            var b = metadataManager.GetBroker(CoordinatorId);
+            var request = new SyncGroupRequest
             {
-                GroupId = groupId,
-                MemberId = memberId,
-                GenerationId = generationId
-            });
-            if (response.ErrorCode != ResponseError.NO_ERROR)
-                throw new InvalidOperationException("SyncGroup error: " + response.ErrorCode);
+                GroupId = GroupId,
+                MemberId = MemberId,
+                GenerationId = GenerationId
+            };
+            if (IsLeader)
+            {
+                // figure out member assignments
+            }
+
+            var response = await b.Connection.SyncGroup(request);
+            switch (response.ErrorCode)
+            {
+                case ResponseError.NO_ERROR:
+                    break;
+                case ResponseError.UNKNOWN_MEMBER_ID:
+                case ResponseError.ILLEGAL_GENERATION:
+                //reset
+                default:
+                    throw new KafkaException("SyncGroup error: " + response.ErrorCode);
+            }
 
             if (IsLeader && response.Assignment?.Length == 0)
             {
-                Console.WriteLine("leader but not assignments");
+                Console.WriteLine("leader but no assignments");
+                CurrentMemberState = MemberState.Empty;
             }
+            else
+                CurrentMemberState = new MemberState(response.Assignment);
 
-            CurrentMemberState = new MemberState(new ReadOnlySequence<byte>(response.Assignment));
-            CurrentMemberState = new MemberState(response.Assignment);
+            State = CoordinatorState.Synced;
+            GroupSynced?.Invoke(this);
         }
 
-        public MemberState CurrentMemberState { get; private set; }
+        private CancellationTokenSource heartbeatCancellation;
 
-        private async Task SendHeartbeats()
+        private void CancelHeartbeat()
         {
-            heartbeatRunning = true;
-            var broker = metadataManager.GetBroker(coordinatorBrokerId);
-            while (heartbeatRunning)
+            heartbeatCancellation.Cancel();
+            heartbeatCancellation = null;
+        }
+
+        private async Task StartHeartbeat()
+        {
+            if (heartbeatCancellation != null && !heartbeatCancellation.IsCancellationRequested)
+                return;
+
+            await Task.Yield();
+            heartbeatCancellation = new CancellationTokenSource();
+            try
             {
-                var response = await broker.Connection.Heartbeat(new HeartbeatRequest
+                await StartHeartbeat(heartbeatCancellation.Token);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("heartbeat: " + ex.Message);
+            }
+        }
+        private async Task StartHeartbeat(CancellationToken cancellationToken)
+        {
+            State = CoordinatorState.Heartbeating;
+            var coordinator = GetCoordinator();
+            while (!cancellationToken.IsCancellationRequested)
+            {
+                //Console.WriteLine("Heartbeat");
+                var response = await coordinator.Connection.Heartbeat(new HeartbeatRequest
                 {
-                    GroupId = groupId,
-                    GenerationId = generationId,
-                    MemberId = memberId
+                    GroupId = GroupId,
+                    GenerationId = GenerationId,
+                    MemberId = MemberId
                 });
 
-                switch (response.ErrorCode)
-                {
-                    case ResponseError.GROUP_COORDINATOR_NOT_AVAILABLE:
-                    case ResponseError.GROUP_ID_NOT_FOUND:
-                        throw new InvalidOperationException($"Heartbeat: " + response.ErrorCode.ToString());
+                //var response = await broker.Connection.ApiVersion();
 
-                    case ResponseError.REASSIGNMENT_IN_PROGRESS:
-                        // TODO: handle reassignment
-                        break;
-                }
+                //switch (response.ErrorCode)
+                //{
+                //    case ResponseError.GROUP_COORDINATOR_NOT_AVAILABLE:
+                //    case ResponseError.GROUP_ID_NOT_FOUND:
+                //        throw new KafkaException($"Heartbeat: " + response.ErrorCode.ToString());
+
+                //    case ResponseError.REASSIGNMENT_IN_PROGRESS:
+                //        // TODO: handle reassignment
+                //        break;
+                //}
 
                 //sensors.heartbeatSensor.record(response.requestLatencyMs());
                 //Errors error = heartbeatResponse.error();
@@ -179,6 +273,7 @@ namespace A6k.Kafka
                 {
                     case ResponseError.NO_ERROR:
                         //log.debug("Received successful Heartbeat response");
+                        //Console.WriteLine("Received successful Heartbeat response");
                         break;
                     case ResponseError.COORDINATOR_NOT_AVAILABLE:
                     case ResponseError.NOT_COORDINATOR:
@@ -186,40 +281,49 @@ namespace A6k.Kafka
                         //coordinator());
                         //markCoordinatorUnknown();
                         //future.raise(error);
+                        await Start();
                         break;
                     case ResponseError.REBALANCE_IN_PROGRESS:
                         //log.info("Attempt to heartbeat failed since group is rebalancing");
                         //requestRejoin();
                         //future.raise(error);
+                        await RequestJoin();
                         break;
+
                     case ResponseError.ILLEGAL_GENERATION:
                         //log.info("Attempt to heartbeat failed since generation {} is not current", generation.generationId);
                         //resetGenerationOnResponseError(ApiKeys.HEARTBEAT, error);
                         //future.raise(error);
-                        break;
-                    case ResponseError.FENCED_INSTANCE_ID:
-                        //log.error("Received fatal exception: group.instance.id gets fenced");
-                        //future.raise(error);
+                        await RequestJoin();
                         break;
                     case ResponseError.UNKNOWN_MEMBER_ID:
                         //log.info("Attempt to heartbeat failed for since member id {} is not valid.", generation.memberId);
                         //resetGenerationOnResponseError(ApiKeys.HEARTBEAT, error);
                         //future.raise(error);
+                        await RequestJoin();
                         break;
                     case ResponseError.GROUP_AUTHORIZATION_FAILED:
-                        //future.raise(GroupAuthorizationException.forGroupId(rebalanceConfig.groupId));
-                        break;
+                    //future.raise(GroupAuthorizationException.forGroupId(rebalanceConfig.groupId));
+                    //Console.WriteLine("expected HeartBeat error: " + response.ErrorCode);
+                    //break;
+                    case ResponseError.FENCED_INSTANCE_ID:
+                    //log.error("Received fatal exception: group.instance.id gets fenced");
+                    //future.raise(error);
+                    //break;
                     default:
+                        Console.WriteLine("heartbeat: " + response.ErrorCode.ToString());
                         throw new KafkaException("Unexpected error in heartbeat response: " + response.ErrorCode.ToString());
                 }
 
-                await Task.Delay(3_000); // heartbeat.interval.ms
+                // heartbeat.interval.ms
+                // ignore cancellation
+                await Task.Delay(3_000, cancellationToken).ContinueWith(_ => { });
             }
+            Console.WriteLine("Heartbeat: stopped");
         }
 
         public class ConsumerGroupMetadata
         {
-
             public ConsumerGroupMetadata(in ReadOnlySequence<byte> input)
             {
                 var reader = new SequenceReader<byte>(input);
@@ -228,7 +332,7 @@ namespace A6k.Kafka
                     !reader.TryReadArrayOfString(out var topics) ||
                     !reader.TryReadBytes(out var userdata)
                 )
-                    throw new InvalidOperationException("BadFormat: ConsumerGroupMetadata");
+                    throw new KafkaException("BadFormat: ConsumerGroupMetadata");
 
                 Version = version;
                 Topics = topics;
@@ -264,6 +368,8 @@ namespace A6k.Kafka
 
         public class MemberState
         {
+            public static readonly MemberState Empty = new MemberState(0, Array.Empty<TopicPartition>(), Array.Empty<byte>());
+
             public MemberState(short version, IReadOnlyList<TopicPartition> assignments, byte[] userData)
             {
                 Version = version;
@@ -280,7 +386,7 @@ namespace A6k.Kafka
                     !reader.TryReadArray<TopicPartition>(TryParseAssignment, out var topics) ||
                     !reader.TryReadBytes(out var userdata)
                 )
-                    throw new InvalidOperationException("BadFormat: ConsumerGroupMetadata");
+                    throw new KafkaException("BadFormat: ConsumerGroupMetadata");
 
                 Version = version;
                 Assignments = topics;

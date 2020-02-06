@@ -2,12 +2,14 @@
 using System.Linq;
 using System.Net;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+
 using A6k.Kafka;
 using A6k.Kafka.Messages;
 using Bedrock.Framework;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
 
 namespace TestConsole
 {
@@ -16,17 +18,34 @@ namespace TestConsole
     class Program
     {
         private const string BootstrapServers = "localhost:29092";
-        private const string TopicName = "test-topic";
-        //private const string TopicName = "partitioned-topic";
+        //private const string TopicName = "test-topic";
+        private const string TopicName = "partitioned-topic";
 
         static async Task Main(string[] args)
         {
+            var cts = new CancellationTokenSource();
+            Console.CancelKeyPress += (_, e) =>
+            {
+                Console.WriteLine("cancelled...");
+                cts.Cancel();
+                e.Cancel = true;
+            };
+
             //var kafka = await GetKafka();
             //await GetVersion(kafka);
             //await GetMetadata(kafka);
             //await Produce(kafka);
             //await FindCoordinator(kafka);
-
+            //while (!cts.IsCancellationRequested)
+            //{
+            //    await kafka.Heartbeat(new HeartbeatRequest
+            //    {
+            //        GroupId = "groupId",
+            //        GenerationId = 0,
+            //        MemberId = "12345"
+            //    });
+            //    await Task.Delay(500);
+            //}
 
             //var kafka = await GetKafka(29093);
             //await Fetch(kafka);
@@ -39,14 +58,16 @@ namespace TestConsole
 
             //await BrokerMgr();
 
-            await Producer();
+            //await Producer();
 
             //await Consumer();
 
-            //await ConsumerGroup();
+            _ = ConsumerGroup();
 
-            Console.WriteLine("done...");
-            Console.ReadLine();
+            Console.WriteLine("ctrl-C to end");
+            // wait forever and do not throw on cancellation
+            // doing it this way means ConsumerGroup connections do not block as they do with Console.Readline()
+            await Task.Delay(-1, cts.Token).ContinueWith(_ => { }, TaskContinuationOptions.OnlyOnCanceled);
         }
 
         private static async Task BrokerMgr()
@@ -84,24 +105,19 @@ namespace TestConsole
         {
             var mdMgr = GetMetadataManager();
             await mdMgr.Connect("a6k", BootstrapServers);
+
             var coordinator = new ClientGroupCoordinator(mdMgr, "testgroup", TopicName);
-
-            await coordinator.FindCoordinator();
-            Console.WriteLine($"coordinator: {coordinator.CoordinatorId}");
-
-            await coordinator.JoinGroup();
-            Console.WriteLine($"memberid: {coordinator.MemberId}");
-
-
-
-            while (true)
+            coordinator.StateChanged += (c, oldState, newState) => Console.WriteLine($"state: {oldState} -> {newState}");
+            coordinator.CoordinatorFound += c => Console.WriteLine($"coordinator: {c.CoordinatorId}");
+            coordinator.GroupJoined += c => Console.WriteLine($"joined: memberId: {c.MemberId} ({(c.IsLeader ? "leader" : "member")})");
+            coordinator.GroupSynced += c =>
             {
-                await Task.Delay(1000);
-                await coordinator.SyncGroup();
-                Console.WriteLine("group version: " + coordinator.CurrentMemberState.Version);
-                foreach (var a in coordinator.CurrentMemberState.Assignments)
-                    Console.WriteLine($"{a.Topic}: {string.Join(",", a.Partitions)}");
-            }
+                Console.WriteLine("synced: group version: " + c.CurrentMemberState.Version);
+                foreach (var a in c.CurrentMemberState.Assignments)
+                    Console.WriteLine($"  assigned: {a.Topic}: {string.Join(",", a.Partitions)}");
+            };
+
+            await coordinator.Start();
         }
 
         private static async Task Consumer()

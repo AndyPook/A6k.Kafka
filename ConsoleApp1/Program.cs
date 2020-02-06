@@ -26,7 +26,7 @@ namespace ConsoleApp1
 
             //Produce();
 
-            await GetGroup();
+            //await GetGroup();
 
             Console.WriteLine("done...");
             Console.ReadLine();
@@ -64,7 +64,16 @@ namespace ConsoleApp1
                         FetchWaitMaxMs = 10_000 // make Fetch less agressive
                     }
                 )
-                .SetPartitionsAssignedHandler((_, p) => p.Select(tp => new TopicPartitionOffset(tp, Offset.Beginning)).ToList())
+                .SetPartitionsAssignedHandler((_, p) =>
+                {
+                    Console.WriteLine("partitions assigned: " + string.Join(", ", p.Select(tp => tp.Partition.Value)));
+                    // start from the beginning of each partition
+                    return p.Select(tp => new TopicPartitionOffset(tp, Offset.Beginning)).ToList();
+                })
+                .SetPartitionsRevokedHandler((_, p) =>
+                {
+                    Console.WriteLine("partitions revoked : " + string.Join(", ", p.Select(tp => tp.Partition.Value)));
+                })
                 .Build();
 
             consumer.Subscribe("partitioned-topic");
@@ -126,14 +135,19 @@ namespace ConsoleApp1
                 })
                 .Build();
 
+            string members = null;
             while (true)
             {
                 // FYI: ListGroups is broken :( (see https://github.com/confluentinc/confluent-kafka-dotnet/pull/1169)
                 var g = admin.ListGroup("testgroup", TimeSpan.FromSeconds(1));
                 if (g != null && g.Members?.Count > 0)
                 {
-                    Console.WriteLine($"group: {g.Group} - {string.Join(",", g.Members?.Select(m => m.MemberId))}");
-                    break;
+                    var newMembers = string.Join(",", g.Members?.Select(m => m.MemberId));
+                    if (newMembers != members)
+                    {
+                        members = newMembers;
+                        Console.WriteLine($"group: {g.Group} - {members}");
+                    }
                 }
 
                 await Task.Delay(2_000);
