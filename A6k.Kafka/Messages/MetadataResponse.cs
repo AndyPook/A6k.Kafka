@@ -37,8 +37,9 @@ namespace A6k.Kafka.Messages
         {
             public TopicMetadata(short errorCode)
             {
-                ErrorCode = errorCode;
+                ErrorCode = (ResponseError)errorCode;
             }
+
             public TopicMetadata(string topicName, bool isInternal, PartitionMetadata[] partitions)
             {
                 TopicName = topicName;
@@ -46,7 +47,7 @@ namespace A6k.Kafka.Messages
                 Partitions = partitions;
             }
 
-            public short ErrorCode { get; }
+            public ResponseError ErrorCode { get; }
             public string TopicName { get; }
             public bool IsInternal { get; }
             public IReadOnlyList<PartitionMetadata> Partitions { get; }

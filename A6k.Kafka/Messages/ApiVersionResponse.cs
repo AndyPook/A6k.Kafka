@@ -7,7 +7,7 @@ namespace A6k.Kafka.Messages
     {
         public ApiVersionResponse(short errorCode)
         {
-            ErrorCode = errorCode;
+            ErrorCode = (ResponseError)errorCode;
             ApiVersions = new ApiVersion[0];
         }
 
@@ -16,7 +16,7 @@ namespace A6k.Kafka.Messages
             ApiVersions = apiVersions;
         }
 
-        public short ErrorCode { get; }
+        public ResponseError ErrorCode { get; }
         public IReadOnlyList<ApiVersion> ApiVersions { get; }
 
         public class ApiVersion
