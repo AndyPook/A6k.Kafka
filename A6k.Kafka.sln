@@ -3,13 +3,19 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 16
 VisualStudioVersion = 16.0.29613.14
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "TestConsole", "TestConsole\TestConsole.csproj", "{E8955FDE-7985-48EC-A57F-6D32A63448C8}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "TestConsole", "src\TestConsole\TestConsole.csproj", "{E8955FDE-7985-48EC-A57F-6D32A63448C8}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ConsoleApp1", "ConsoleApp1\ConsoleApp1.csproj", "{4327D890-1D0B-4E61-90A4-6652E68E050F}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ConsoleApp1", "src\ConsoleApp1\ConsoleApp1.csproj", "{4327D890-1D0B-4E61-90A4-6652E68E050F}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "A6k.Kafka", "A6k.Kafka\A6k.Kafka.csproj", "{3B9ADE73-135D-4961-A51C-14A8908614DD}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "A6k.Kafka", "src\A6k.Kafka\A6k.Kafka.csproj", "{3B9ADE73-135D-4961-A51C-14A8908614DD}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "A6k.Kafka.Tests", "A6k.Kafka.Tests\A6k.Kafka.Tests.csproj", "{EC2FB195-F9D0-49FE-BC73-132FCF020A73}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "A6k.Kafka.Tests", "src\A6k.Kafka.Tests\A6k.Kafka.Tests.csproj", "{EC2FB195-F9D0-49FE-BC73-132FCF020A73}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Bedrock", "Bedrock", "{12F5A17B-87E6-4479-93CB-8244343D5032}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Bedrock.Framework", "BedrockFramework\src\Bedrock.Framework\Bedrock.Framework.csproj", "{C0395D25-BA51-4B0D-BAAE-AADF5D047F66}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Bedrock.Framework.Experimental", "BedrockFramework\src\Bedrock.Framework.Experimental\Bedrock.Framework.Experimental.csproj", "{C651D189-D373-4BA3-8538-AD484232475C}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -33,9 +39,21 @@ Global
 		{EC2FB195-F9D0-49FE-BC73-132FCF020A73}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{EC2FB195-F9D0-49FE-BC73-132FCF020A73}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{EC2FB195-F9D0-49FE-BC73-132FCF020A73}.Release|Any CPU.Build.0 = Release|Any CPU
+		{C0395D25-BA51-4B0D-BAAE-AADF5D047F66}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C0395D25-BA51-4B0D-BAAE-AADF5D047F66}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C0395D25-BA51-4B0D-BAAE-AADF5D047F66}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C0395D25-BA51-4B0D-BAAE-AADF5D047F66}.Release|Any CPU.Build.0 = Release|Any CPU
+		{C651D189-D373-4BA3-8538-AD484232475C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C651D189-D373-4BA3-8538-AD484232475C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C651D189-D373-4BA3-8538-AD484232475C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C651D189-D373-4BA3-8538-AD484232475C}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{C0395D25-BA51-4B0D-BAAE-AADF5D047F66} = {12F5A17B-87E6-4479-93CB-8244343D5032}
+		{C651D189-D373-4BA3-8538-AD484232475C} = {12F5A17B-87E6-4479-93CB-8244343D5032}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {CD9D9004-7DAF-4B8B-8F97-F090EF4AEA5C}
