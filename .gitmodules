@@ -1,0 +1,4 @@
+[submodule "BedrockFramework"]
+	path = BedrockFramework
+	url = https://github.com/davidfowl/BedrockFramework.git
+	branch = master
