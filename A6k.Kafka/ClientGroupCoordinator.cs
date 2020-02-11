@@ -73,6 +73,7 @@ namespace A6k.Kafka
         public string MemberId { get; private set; }
         public string LeaderId { get; private set; }
         public int GenerationId { get; private set; }
+        public string GroupProtocol { get; private set; }
 
         public bool IsLeader => string.Equals(LeaderId, MemberId);
         public MemberState CurrentMemberState { get; private set; } = MemberState.Empty;
@@ -154,6 +155,7 @@ namespace A6k.Kafka
                         MemberId = response.MemberId;
                         LeaderId = response.Leader;
                         GenerationId = response.GenerationId;
+                        GroupProtocol = response.ProtocolName;
                         if (joined && IsLeader)
                             Members = response.Members.Select(m => new GroupMember(m.MemberId, m.GroupInstanceId, m.Metadata)).ToArray();
                         else
@@ -434,4 +436,12 @@ namespace A6k.Kafka
             }
         }
     }
+
+    public interface IGroupAssignor
+    {
+
+    }
+
+    public class RangeAssignor : IGroupAssignor { }
+    public class RoundRobinAssignor : IGroupAssignor { }
 }

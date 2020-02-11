@@ -30,16 +30,6 @@ namespace A6k.Kafka
         private int correlationId = 0;
         private ChannelWriter<Op> outboundWriter;
         private ChannelWriter<Op> inflightWriter;
-
-        //public KafkaConnection(ConnectionContext connection, string clientId)
-        //{
-        //    this.connection = connection ?? throw new ArgumentNullException(nameof(connection));
-        //    ClientId = clientId;
-
-        //    StartOutbound(cancellation.Token);
-        //    StartInbound(cancellation.Token);
-        //}
-
         public KafkaConnection(Client client, IPEndPoint endpoint, string clientId)
         {
             this.client = client ?? throw new ArgumentNullException(nameof(client));

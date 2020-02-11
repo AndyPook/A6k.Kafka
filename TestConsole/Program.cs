@@ -108,7 +108,7 @@ namespace TestConsole
             var coordinator = new ClientGroupCoordinator(cluster, "testgroup", TopicName);
             coordinator.StateChanged += (c, oldState, newState) => Console.WriteLine($"state: {oldState} -> {newState}");
             coordinator.CoordinatorFound += c => Console.WriteLine($"coordinator: {c.CoordinatorId}");
-            coordinator.GroupJoined += c => Console.WriteLine($"joined: memberId: {c.MemberId} ({(c.IsLeader ? "leader" : "member")})");
+            coordinator.GroupJoined += c => Console.WriteLine($"joined: memberId: {c.MemberId} ({(c.IsLeader ? "leader" : "member")}) - Protocol: {c.GroupProtocol}");
             coordinator.GroupSynced += c =>
             {
                 Console.WriteLine("synced: group version: " + c.CurrentMemberState.Version);

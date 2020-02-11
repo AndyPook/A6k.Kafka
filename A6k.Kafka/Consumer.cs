@@ -11,27 +11,30 @@ namespace A6k.Kafka
     public class Consumer<TKey, TValue>
     {
         private readonly ClusterManager metadataManager;
-
+        private readonly string groupId;
         private readonly IDeserializer<TKey> keyDeserializer;
         private readonly IDeserializer<TValue> valueDeserializer;
 
-        private TopicMetadata topicMetadata;
+        private TopicMetadata topic;
 
         private ChannelReader<Message<TKey, TValue>> messageReader;
 
-        public Consumer(ClusterManager metadataManager)
+        public Consumer(ClusterManager metadataManager, string groupId = null, IDeserializer<TKey> keyDeserializer = null, IDeserializer<TValue> valueDeserializer = null)
         {
             this.metadataManager = metadataManager ?? throw new ArgumentNullException(nameof(metadataManager));
+            this.groupId = groupId;
 
-            if (!IntrinsicDeserializers.TryGetDeserializer(out keyDeserializer))
+            if (keyDeserializer==null && !IntrinsicDeserializers.TryGetDeserializer(out keyDeserializer))
                 throw new ArgumentException($"No deserializer found for Key ({typeof(TKey).Name})");
-            if (!IntrinsicDeserializers.TryGetDeserializer(out valueDeserializer))
+            if (valueDeserializer==null && !IntrinsicDeserializers.TryGetDeserializer(out valueDeserializer))
                 throw new ArgumentException($"No deserializer found for Value ({typeof(TValue).Name})");
+            this.keyDeserializer = keyDeserializer;
+            this.valueDeserializer = valueDeserializer;
         }
 
         public async Task Subscribe(string topicName)
         {
-            topicMetadata = await metadataManager.GetTopic(topicName);
+            topic = await metadataManager.GetTopic(topicName);
             Fetch();
         }
 
@@ -50,10 +53,10 @@ namespace A6k.Kafka
             messageReader = channel.Reader;
             var messageWriter = channel.Writer;
 
-            foreach (var p in topicMetadata.Partitions)
+            foreach (var p in topic.Partitions)
             {
                 var broker = metadataManager.GetBroker(p.Leader);
-                _ = Fetch(messageWriter, topicMetadata.TopicName, p, broker, cancellationToken);
+                _ = Fetch(messageWriter, topic.TopicName, p, broker, cancellationToken);
             }
         }
 
