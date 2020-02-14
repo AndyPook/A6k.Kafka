@@ -7,24 +7,12 @@ using System.Threading.Tasks;
 
 using A6k.Kafka.Messages;
 using A6k.Kafka.Metadata;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace A6k.Kafka
 {
-    public class GroupMember
-    {
-        public GroupMember(string memberId, string groupInstanceId, byte[] metadata)
-        {
-            MemberId = memberId;
-            GroupInstanceId = groupInstanceId;
-            Metadata = metadata;
-        }
-
-        public string MemberId { get; }
-        public string GroupInstanceId { get; }
-        public byte[] Metadata { get; }
-    }
-
-    public class ClientGroupCoordinator
+    public abstract class ClientGroupCoordinator
     {
         public enum CoordinatorState
         {
@@ -38,16 +26,27 @@ namespace A6k.Kafka
             Heartbeating
         }
 
-        private readonly ClusterManager cluster;
-        private readonly ConsumerGroupMetadata groupMetadata;
-        private readonly byte[] groupMetadataBytes;
+        public enum RebalanceProtocol : byte
+        {
+            Eager = 0,
+            Cooperative = 1
+        }
+
+        protected readonly ClusterManager cluster;
+        protected readonly Subscription groupMetadata;
+        protected readonly byte[] groupMetadataBytes;
+
+        protected readonly ILogger logger = NullLogger<ClientGroupCoordinator>.Instance;
+
+        // ???
+        protected RebalanceProtocol protocol;
 
         public ClientGroupCoordinator(ClusterManager cluster, string groupId, params string[] topics)
         {
             this.cluster = cluster;
-            this.GroupId = groupId;
+            GroupId = groupId;
 
-            groupMetadata = new ConsumerGroupMetadata(0, topics);
+            groupMetadata = new Subscription(0, topics);
             groupMetadataBytes = groupMetadata.ToArray();
         }
 
@@ -64,7 +63,7 @@ namespace A6k.Kafka
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine("problem in state chage handler: " + ex.Message);
+                    Console.WriteLine("problem in state change handler: " + ex.Message);
                 }
                 state = value;
             }
@@ -76,14 +75,14 @@ namespace A6k.Kafka
         public string GroupProtocol { get; private set; }
 
         public bool IsLeader => string.Equals(LeaderId, MemberId);
-        public MemberState CurrentMemberState { get; private set; } = MemberState.Empty;
+        public Assignment CurrentMemberState { get; private set; } = Assignment.Empty;
         public IReadOnlyList<GroupMember> Members { get; private set; } = Array.Empty<GroupMember>();
 
         public event Action<ClientGroupCoordinator> CoordinatorFound;
         public event Action<ClientGroupCoordinator> GroupJoined;
         public event Action<ClientGroupCoordinator> GroupSynced;
         public event Action<ClientGroupCoordinator, CoordinatorState, CoordinatorState> StateChanged;
-        
+
         public async Task Start()
         {
             State = CoordinatorState.None;
@@ -189,7 +188,12 @@ namespace A6k.Kafka
             };
             if (IsLeader)
             {
-                // figure out member assignments
+                var assignments = PerformAssignment(LeaderId, "roundrobin", Members);
+                request.Assignments = assignments.Select(kvp => new SyncGroupRequest.Assignment
+                {
+                    MemberId = kvp.Key,
+                    AssignmentData = kvp.Value
+                }).ToArray();
             }
 
             var response = await b.SyncGroup(request);
@@ -207,14 +211,19 @@ namespace A6k.Kafka
             if (IsLeader && response.Assignment?.Length == 0)
             {
                 Console.WriteLine("leader but no assignments");
-                CurrentMemberState = MemberState.Empty;
+                CurrentMemberState = Assignment.Empty;
             }
             else
-                CurrentMemberState = new MemberState(response.Assignment);
+                CurrentMemberState = new Assignment(response.Assignment);
 
             State = CoordinatorState.Synced;
             GroupSynced?.Invoke(this);
         }
+
+        protected abstract Dictionary<string, byte[]> PerformAssignment(
+            string leaderId,
+            string assignmentStrategy,
+            IReadOnlyList<GroupMember> allSubscriptions);
 
         private CancellationTokenSource heartbeatCancellation;
 
@@ -321,127 +330,279 @@ namespace A6k.Kafka
             }
             Console.WriteLine("Heartbeat: stopped");
         }
-
-        public class ConsumerGroupMetadata
-        {
-            public ConsumerGroupMetadata(in ReadOnlySequence<byte> input)
-            {
-                var reader = new SequenceReader<byte>(input);
-                if (
-                    !reader.TryReadShort(out var version) ||
-                    !reader.TryReadArrayOfString(out var topics) ||
-                    !reader.TryReadBytes(out var userdata)
-                )
-                    throw new KafkaException("BadFormat: ConsumerGroupMetadata");
-
-                Version = version;
-                Topics = topics;
-                UserData = userdata.ToArray();
-            }
-
-            public ConsumerGroupMetadata(short version, string[] topics, byte[] userData = null)
-            {
-                Version = version;
-                Topics = topics;
-                UserData = userData;
-            }
-
-            public short Version { get; set; }
-
-            public string[] Topics { get; set; }
-            public byte[] UserData { get; set; }
-
-            public void CopyTo(IBufferWriter<byte> output)
-            {
-                output.WriteShort(Version);
-                output.WriteArray(Topics);
-                output.WriteBytes(UserData);
-            }
-
-            public byte[] ToArray()
-            {
-                var buffer = new MemoryBufferWriter();
-                CopyTo(buffer);
-                return buffer.ToArray();
-            }
-        }
-
-        public class MemberState
-        {
-            public static readonly MemberState Empty = new MemberState(0, Array.Empty<TopicPartition>(), Array.Empty<byte>());
-
-            public MemberState(short version, IReadOnlyList<TopicPartition> assignments, byte[] userData)
-            {
-                Version = version;
-                Assignments = assignments;
-                UserData = userData;
-            }
-
-            public MemberState(in ReadOnlyMemory<byte> input) : this(new SequenceReader<byte>(new ReadOnlySequence<byte>(input))) { }
-            public MemberState(in ReadOnlySequence<byte> input) : this(new SequenceReader<byte>(input)) { }
-            public MemberState(SequenceReader<byte> reader)
-            {
-                if (
-                    !reader.TryReadShort(out var version) ||
-                    !reader.TryReadArray<TopicPartition>(TryParseAssignment, out var topics) ||
-                    !reader.TryReadBytes(out var userdata)
-                )
-                    throw new KafkaException("BadFormat: ConsumerGroupMetadata");
-
-                Version = version;
-                Assignments = topics;
-                UserData = userdata.ToArray();
-
-                bool TryParseAssignment(ref SequenceReader<byte> reader, out TopicPartition member)
-                {
-                    member = default;
-                    if (
-                        !reader.TryReadString(out var topic) ||
-                        !reader.TryReadArrayOfInt(out var partitions)
-                    )
-                        return false;
-
-                    member = new TopicPartition(topic, partitions);
-                    return true;
-                }
-            }
-
-            public short Version { get; }
-            public IReadOnlyList<TopicPartition> Assignments { get; }
-            public byte[] UserData { get; }
-
-            public void CopyTo(IBufferWriter<byte> buffer)
-            {
-                buffer.WriteShort(Version);
-                buffer.WriteArray(Assignments, WriteAssignment);
-                buffer.WriteBytes(UserData);
-
-                void WriteAssignment(TopicPartition message, IBufferWriter<byte> output)
-                {
-                    output.WriteString(message.Topic);
-                    output.WriteArray(message.Partitions);
-                }
-            }
-
-            public class TopicPartition
-            {
-                public TopicPartition(string topic, int[] partitions)
-                {
-                    Topic = topic;
-                    Partitions = partitions;
-                }
-
-                public string Topic { get; }
-                public int[] Partitions { get; }
-            }
-        }
     }
 
-    public interface IGroupAssignor
+    public class ConsumerGroupCoordiinator : ClientGroupCoordinator
     {
+        public ConsumerGroupCoordiinator(ClusterManager cluster, string groupId, params string[] topics) : base(cluster, groupId, topics)
+        {
+        }
 
+        override protected Dictionary<string, byte[]> PerformAssignment(
+            string leaderId,
+            string assignmentStrategy,
+            IReadOnlyList<GroupMember> allSubscriptions
+        )
+        {
+            var assignor = LookupAssignor(assignmentStrategy);
+            if (assignor == null)
+                throw new InvalidOperationException("Coordinator selected invalid assignment protocol: " + assignmentStrategy);
+
+            var allSubscribedTopics = new HashSet<string>();
+            var subscriptions = new Dictionary<string, Subscription>();
+
+            // collect all the owned partitions
+            var ownedPartitions = new Dictionary<string, List<Subscription.TopicPartitions>>();
+
+            foreach (var memberSubscription in allSubscriptions)
+            {
+                var subscription = new Subscription(memberSubscription.Metadata, memberSubscription.GroupInstanceId);
+                subscriptions[memberSubscription.MemberId] = subscription;
+                foreach (var t in subscription.Topics)
+                    allSubscribedTopics.Add(t);
+                ownedPartitions[memberSubscription.MemberId] = subscription.OwnedPartitions.ToList();
+            }
+
+            // the leader will begin watching for changes to any of the topics the group is interested in,
+            // which ensures that all metadata changes will eventually be seen
+            updateGroupSubscription(allSubscribedTopics);
+
+            // isLeader = true;
+
+            logger.LogDebug("Performing assignment using strategy {Name} with subscriptions {Subscriptions}", assignor.Name, subscriptions);
+
+            Dictionary<string, Assignment> assignments = assignor.Assign(cluster, new GroupSubscription(subscriptions)).groupAssignment();
+
+            if (protocol == RebalanceProtocol.Cooperative)
+            {
+                validateCooperativeAssignment(ownedPartitions, assignments);
+            }
+
+            // user-customized assignor may have created some topics that are not in the subscription list
+            // and assign their partitions to the members; in this case we would like to update the leader's
+            // own metadata with the newly added topics so that it will not trigger a subsequent rebalance
+            // when these topics gets updated from metadata refresh.
+            //
+            // TODO: this is a hack and not something we want to support long-term unless we push regex into the protocol
+            //       we may need to modify the ConsumerPartitionAssignor API to better support this case.
+            var assignedTopics = new HashSet<string>();
+            foreach (Assignment assigned in assignments.Values)
+            {
+                foreach (var tp in assigned.AssignedPartitions)
+                    assignedTopics.Add(tp.Topic);
+            }
+
+            if (!assignedTopics.IsProperSubsetOf(allSubscribedTopics))
+            {
+                var notAssignedTopics = new HashSet<string>(allSubscribedTopics);
+                notAssignedTopics.RemoveWhere(t => assignedTopics.Contains(t));
+                logger.LogWarning("The following subscribed topics are not assigned to any members: {NotAssignedTopics}", notAssignedTopics);
+            }
+
+            if (!allSubscribedTopics.IsProperSubsetOf(assignedTopics))
+            {
+                var newlyAddedTopics = new HashSet<string>(assignedTopics);
+                newlyAddedTopics.RemoveWhere(t => allSubscribedTopics.Contains(t));
+                logger.LogInformation("The following not-subscribed topics are assigned, and their metadata will be " +
+                        "fetched from the brokers: {NewlyAddedTopics}", newlyAddedTopics);
+
+                foreach (var t in assignedTopics)
+                    allSubscribedTopics.Add(t);
+                updateGroupSubscription(allSubscribedTopics);
+            }
+
+            assignmentSnapshot = metadataSnapshot;
+
+            logger.LogInformation("Finished assignment for group at generation {Generation}: {Assignments}", GenerationId, assignments);
+
+            var groupAssignment = new Dictionary<string, byte[]>();
+            foreach (var assignmentEntry in assignments)
+            {
+                var buffer = assignmentEntry.Value.ToArray();
+                groupAssignment[assignmentEntry.Key] = buffer;
+            }
+
+            return groupAssignment;
+        }
+
+        private IConsumerPartitionAssignor LookupAssignor(string assignmentStrategy)
+        {
+            switch (assignmentStrategy.ToLowerInvariant())
+            {
+                case "roundrobin": return new RoundRobinAssignor();
+                default: throw new InvalidOperationException("Unknown partition assignment strategy: " + assignmentStrategy);
+            }
+        }
     }
 
-    public class RangeAssignor : IGroupAssignor { }
-    public class RoundRobinAssignor : IGroupAssignor { }
+    public class GroupMember
+    {
+        public GroupMember(string memberId, string groupInstanceId, byte[] metadata)
+        {
+            MemberId = memberId;
+            GroupInstanceId = groupInstanceId;
+            Metadata = metadata;
+            Subscription = new Subscription(metadata, groupInstanceId);
+        }
+
+        public string MemberId { get; }
+        public string GroupInstanceId { get; }
+        public byte[] Metadata { get; }
+
+        public Subscription Subscription { get; }
+    }
+
+    public class Assignment
+    {
+        public static readonly Assignment Empty = new Assignment(0, Array.Empty<TopicPartitions>(), Array.Empty<byte>());
+
+        public Assignment(short version, IReadOnlyList<TopicPartitions> assignments, byte[] userData)
+        {
+            Version = version;
+            AssignedPartitions = assignments;
+            UserData = userData;
+        }
+
+        public Assignment(in ReadOnlyMemory<byte> input) : this(new SequenceReader<byte>(new ReadOnlySequence<byte>(input))) { }
+        public Assignment(in ReadOnlySequence<byte> input) : this(new SequenceReader<byte>(input)) { }
+        public Assignment(SequenceReader<byte> reader)
+        {
+            if (
+                !reader.TryReadShort(out var version) ||
+                !reader.TryReadArray<TopicPartitions>(TryParseAssignment, out var topics) ||
+                !reader.TryReadBytes(out var userdata)
+            )
+                throw new KafkaException("BadFormat: ConsumerGroupMetadata");
+
+            Version = version;
+            AssignedPartitions = topics;
+            UserData = userdata.ToArray();
+
+            bool TryParseAssignment(ref SequenceReader<byte> reader, out TopicPartitions member)
+            {
+                member = default;
+                if (
+                    !reader.TryReadString(out var topic) ||
+                    !reader.TryReadArrayOfInt(out var partitions)
+                )
+                    return false;
+
+                member = new TopicPartitions(topic, partitions);
+                return true;
+            }
+        }
+
+        public short Version { get; }
+        public IReadOnlyList<TopicPartitions> AssignedPartitions { get; }
+        public byte[] UserData { get; }
+
+        public void WriteTo(IBufferWriter<byte> buffer)
+        {
+            buffer.WriteShort(Version);
+            buffer.WriteArray(AssignedPartitions, WriteAssignment);
+            buffer.WriteBytes(UserData);
+
+            void WriteAssignment(TopicPartitions message, IBufferWriter<byte> output)
+            {
+                output.WriteString(message.Topic);
+                output.WriteArray(message.Partitions);
+            }
+        }
+
+        public byte[] ToArray()
+        {
+            using var buffer = new MemoryBufferWriter();
+            WriteTo(buffer);
+            return buffer.ToArray();
+        }
+
+
+        public class TopicPartitions
+        {
+            public TopicPartitions(string topic, IReadOnlyList<int> partitions)
+            {
+                Topic = topic;
+                Partitions = partitions;
+            }
+
+            public string Topic { get; }
+            public IReadOnlyList<int> Partitions { get; }
+        }
+    }
+
+    public class Subscription
+    {
+        public Subscription(in ReadOnlyMemory<byte> input, string groupInstanceId)
+            : this(new ReadOnlySequence<byte>(input), groupInstanceId) { }
+        public Subscription(in ReadOnlySequence<byte> input, string groupInstanceId)
+        {
+            var reader = new SequenceReader<byte>(input);
+            if (
+                !reader.TryReadShort(out var version) ||
+                !reader.TryReadArrayOfString(out var topics) ||
+                !reader.TryReadBytes(out var userdata) ||
+                (version >= 1 && !reader.TryReadArray<TopicPartitions>(TryParsePartition, out var owned))
+            )
+                throw new KafkaException("BadFormat: ConsumerGroupMetadata");
+
+            Version = version;
+            Topics = topics;
+            UserData = userdata.ToArray();
+            GroupInstanceId = groupInstanceId;
+
+            bool TryParsePartition(ref SequenceReader<byte> reader, out TopicPartitions message)
+            {
+                message = default;
+                if (!reader.TryReadString(out var topicName))
+                    return false;
+                if (!reader.TryReadArrayOfInt(out var partitions))
+                    return false;
+
+                message = new TopicPartitions(topicName, partitions);
+                return true;
+            }
+        }
+
+        public Subscription(short version, string[] topics, byte[] userData = null, string groupInstanceId = null)
+        {
+            Version = version;
+            Topics = topics;
+            UserData = userData;
+            GroupInstanceId = groupInstanceId;
+        }
+
+        public short Version { get; }
+
+        public string[] Topics { get; }
+        public byte[] UserData { get; }
+        public IReadOnlyCollection<TopicPartitions> OwnedPartitions { get; }
+
+        public string GroupInstanceId { get; }
+
+        public void WriteTo(IBufferWriter<byte> output)
+        {
+            output.WriteShort(Version);
+            output.WriteArray(Topics);
+            output.WriteBytes(UserData);
+        }
+
+        public byte[] ToArray()
+        {
+            using var buffer = new MemoryBufferWriter();
+            WriteTo(buffer);
+            return buffer.ToArray();
+        }
+
+        public class TopicPartitions
+        {
+            public TopicPartitions(string topic, IReadOnlyList<int> partitions)
+            {
+                Topic = topic;
+                Partitions = partitions;
+            }
+
+            public string Topic { get; }
+            public IReadOnlyList<int> Partitions { get; }
+        }
+    }
 }

@@ -112,7 +112,7 @@ namespace TestConsole
             coordinator.GroupSynced += c =>
             {
                 Console.WriteLine("synced: group version: " + c.CurrentMemberState.Version);
-                foreach (var a in c.CurrentMemberState.Assignments)
+                foreach (var a in c.CurrentMemberState.AssignedPartitions)
                     Console.WriteLine($"  assigned: {a.Topic}: {string.Join(",", a.Partitions)}");
             };
 

@@ -249,6 +249,20 @@ namespace A6k.Kafka
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static void WriteArray(this IBufferWriter<byte> output, IReadOnlyList<int> array)
+        {
+            if (array == null)
+            {
+                output.WriteInt(0);
+                return;
+            }
+
+            output.WriteInt(array.Count);
+            for (int i = 0; i < array.Count; i++)
+                output.WriteInt(array[i]);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void WriteArray(this IBufferWriter<byte> output, int[] array)
         {
             if (array == null)
