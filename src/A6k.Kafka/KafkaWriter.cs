@@ -1,25 +1,15 @@
 ﻿using System;
 using System.Buffers;
 using System.Buffers.Binary;
-using System.Buffers.Text;
 using System.Runtime.CompilerServices;
 using System.Text;
 using Bedrock.Framework.Protocols;
 
 namespace A6k.Kafka
 {
-    public delegate void BufferWriterDelegate<TItem, TBuffer>(TItem item, BufferWriter<TBuffer> writer) where TBuffer : IBufferWriter<byte>;
+    public delegate void KafkaWriterDelegate<TItem>(TItem item, KafkaWriter writer);
 
-    public struct BufferWriter
-    {
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static BufferWriter<T> Create<T>(T buffer) where T : IBufferWriter<byte> => new BufferWriter<T>(buffer);
-    
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static BufferWriter<MemoryBufferWriter> CreateMemory() => new BufferWriter<MemoryBufferWriter>(new MemoryBufferWriter());
-    }
-
-    public ref partial struct BufferWriter<T> where T : IBufferWriter<byte>
+    public ref partial struct KafkaWriter
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void WriteByte(byte num)
@@ -237,7 +227,7 @@ namespace A6k.Kafka
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void WriteArray<TItem>(TItem[] array, BufferWriterDelegate<TItem, T> writer)
+        public void WriteArray<TItem>(TItem[] array, KafkaWriterDelegate<TItem> writer)
         {
             if (array == null)
             {
@@ -293,7 +283,7 @@ namespace A6k.Kafka
             switch (prefixType)
             {
                 case PrefixType.Int:
-                    WriteInt((int)buffer.Length);
+                    WriteInt(buffer.Length);
                     break;
                 case PrefixType.VarInt:
                     WriteVarInt(buffer.Length);
@@ -317,7 +307,7 @@ namespace A6k.Kafka
             switch (prefixType)
             {
                 case PrefixType.Int:
-                    WriteInt((int)buffer.Length);
+                    WriteInt(buffer.Length);
                     break;
                 case PrefixType.VarInt:
                     WriteVarInt(buffer.Length);
@@ -341,7 +331,7 @@ namespace A6k.Kafka
             switch (prefixType)
             {
                 case PrefixType.Int:
-                    WriteInt((int)buffer.Length);
+                    WriteInt(buffer.Length);
                     break;
                 case PrefixType.VarInt:
                     WriteVarInt(buffer.Length);
@@ -385,12 +375,12 @@ namespace A6k.Kafka
     /// A fast access struct that wraps <see cref="IBufferWriter{T}"/>.
     /// </summary>
     /// <typeparam name="T">The type of element to be written.</typeparam>
-    public ref partial struct BufferWriter<T> where T : IBufferWriter<byte>
+    public ref partial struct KafkaWriter
     {
         /// <summary>
         /// The underlying <see cref="IBufferWriter{T}"/>.
         /// </summary>
-        private T output;
+        private readonly IBufferWriter<byte> output;
 
         /// <summary>
         /// The result of the last call to <see cref="IBufferWriter{T}.GetSpan(int)"/>, less any bytes already "consumed" with <see cref="Advance(int)"/>.
@@ -414,23 +404,13 @@ namespace A6k.Kafka
         /// </summary>
         /// <param name="output">The <see cref="IBufferWriter{T}"/> to be wrapped.</param>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public BufferWriter(T output)
+        public KafkaWriter(IBufferWriter<byte> output)
         {
             buffered = 0;
             bytesCommitted = 0;
             this.output = output;
             span = output.GetSpan();
         }
-
-        /// <summary>
-        /// Gets the result of the last call to <see cref="IBufferWriter{T}.GetSpan(int)"/>.
-        /// </summary>
-        public Span<byte> Span => span;
-
-        /// <summary>
-        /// Gets the total number of bytes written with this writer.
-        /// </summary>
-        public long BytesCommitted => bytesCommitted;
 
         /// <summary>
         /// Calls <see cref="IBufferWriter{T}.Advance(int)"/> on the underlying writer
@@ -542,4 +522,5 @@ namespace A6k.Kafka
             }
         }
     }
+
 }

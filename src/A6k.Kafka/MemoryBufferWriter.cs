@@ -9,7 +9,7 @@ namespace A6k.Kafka
 {
     // borrowed from https://github.com/yigolden/TiffLibrary
 
-    internal sealed class MemoryBufferWriter : IBufferWriter<byte>, IDisposable
+    public sealed class MemoryBufferWriter : IBufferWriter<byte>, IDisposable
     {
         private MemoryPool<byte> memoryPool;
         private BufferSegment? head;
